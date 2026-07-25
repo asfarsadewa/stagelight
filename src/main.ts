@@ -2,6 +2,7 @@ import './ui/styles.css';
 import { AudioSession } from './audio/session';
 import { Director } from './choreo/director';
 import { Stage } from './stage/stage';
+import { findCharacter, headUrl, loadCast, type CastManifest, type Character } from './stage/cast';
 import { Chime } from './ui/chime';
 import {
   PerformanceRecorder,
@@ -440,9 +441,90 @@ if (import.meta.env.DEV) {
   });
 }
 
-stage
-  .loadAvatar(`${import.meta.env.BASE_URL}sprites`.replace(/\/+$/, ''))
-  .catch(() => fail('The dancer could not be loaded. Try a reload.'));
+const SPRITE_BASE = `${import.meta.env.BASE_URL}sprites`.replace(/\/+$/, '');
+
+/* ---------------------------------------------------------------- cast */
+
+const castRows = [el('cast-row'), el('cast-row-transport')];
+let cast: CastManifest | null = null;
+let currentCharacter: Character | null = null;
+let swapping = false;
+
+async function initCast() {
+  cast = await loadCast(SPRITE_BASE);
+  currentCharacter = findCharacter(cast, null);
+  renderCast();
+  await stage.setCharacter(currentCharacter, SPRITE_BASE);
+
+  // Only once the default is on stage, so the first frame is never held up.
+  const rest = cast.characters.filter((c) => c.id !== currentCharacter?.id);
+  const warm = () => stage.prefetchCharacters(rest, SPRITE_BASE);
+  // Safari only shipped requestIdleCallback recently; fall back to a timer.
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(warm, { timeout: 4000 });
+  } else {
+    window.setTimeout(warm, 1200);
+  }
+}
+
+function renderCast() {
+  if (!cast) return;
+  for (const row of castRows) {
+    row.replaceChildren(
+      ...cast.characters.map((character) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'cast-chip';
+        chip.setAttribute('role', 'radio');
+        chip.setAttribute('aria-checked', String(character.id === currentCharacter?.id));
+        // The compact row shows faces only, so the name has to live here.
+        chip.setAttribute('aria-label', character.name);
+        chip.title = `${character.name} — ${character.tagline}`;
+
+        const head = document.createElement('img');
+        head.className = 'cast-head';
+        head.src = headUrl(SPRITE_BASE, character.id);
+        head.alt = '';
+        head.width = 192;
+        head.height = 192;
+
+        const text = document.createElement('span');
+        text.className = 'cast-text';
+        const name = document.createElement('span');
+        name.className = 'cast-name';
+        name.textContent = character.name;
+        const tagline = document.createElement('span');
+        tagline.className = 'cast-tagline';
+        tagline.textContent = character.tagline;
+        text.append(name, tagline);
+        chip.append(head, text);
+
+        chip.addEventListener('click', () => void selectCharacter(character));
+        return chip;
+      }),
+    );
+  }
+}
+
+/** Atlases are a megabyte each, so they load on demand and are cached after. */
+async function selectCharacter(character: Character) {
+  if (swapping || character.id === currentCharacter?.id) return;
+  swapping = true;
+  for (const row of castRows) {
+    for (const chip of row.querySelectorAll('button')) chip.disabled = true;
+  }
+  try {
+    await stage.setCharacter(character, SPRITE_BASE);
+    currentCharacter = character;
+  } catch {
+    fail('That dancer could not be loaded.');
+  } finally {
+    swapping = false;
+    renderCast();
+  }
+}
+
+void initCast().catch(() => fail('The dancer could not be loaded. Try a reload.'));
 
 stage.resize();
 requestAnimationFrame(frame);

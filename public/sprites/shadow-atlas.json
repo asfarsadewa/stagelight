@@ -1,5 +1,5 @@
 {
-  "image": "dancer-atlas.png",
+  "image": "shadow-atlas.webp",
   "columns": 4,
   "rows": 3,
   "frameCount": 12,
@@ -8,11 +8,11 @@
   "frames": [
     {
       "index": 0,
-      "relativeHeight": 0.9914
+      "relativeHeight": 0.9851
     },
     {
       "index": 1,
-      "relativeHeight": 0.9744
+      "relativeHeight": 0.9723
     },
     {
       "index": 2,
@@ -20,39 +20,39 @@
     },
     {
       "index": 3,
-      "relativeHeight": 0.9553
+      "relativeHeight": 0.949
     },
     {
       "index": 4,
-      "relativeHeight": 0.9171
-    },
-    {
-      "index": 5,
-      "relativeHeight": 0.9468
-    },
-    {
-      "index": 6,
-      "relativeHeight": 0.9447
-    },
-    {
-      "index": 7,
       "relativeHeight": 0.8725
     },
     {
+      "index": 5,
+      "relativeHeight": 0.9256
+    },
+    {
+      "index": 6,
+      "relativeHeight": 0.9171
+    },
+    {
+      "index": 7,
+      "relativeHeight": 0.8449
+    },
+    {
       "index": 8,
-      "relativeHeight": 0.7876
+      "relativeHeight": 0.8237
     },
     {
       "index": 9,
-      "relativeHeight": 0.6985
+      "relativeHeight": 0.794
     },
     {
       "index": 10,
-      "relativeHeight": 0.9426
+      "relativeHeight": 0.8916
     },
     {
       "index": 11,
-      "relativeHeight": 0.9256
+      "relativeHeight": 0.9405
     }
   ]
 }

@@ -281,13 +281,3 @@ export class Dancer {
   }
 }
 
-export async function loadDancer(baseUrl: string): Promise<{ texture: THREE.Texture; meta: AtlasMeta }> {
-  const meta: AtlasMeta = await fetch(`${baseUrl}/dancer-atlas.json`).then((r) => {
-    if (!r.ok) throw new Error('Could not load the sprite atlas');
-    return r.json();
-  });
-  const texture = await new THREE.TextureLoader().loadAsync(`${baseUrl}/${meta.image}`);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
-  return { texture, meta };
-}

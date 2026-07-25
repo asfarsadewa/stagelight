@@ -1,0 +1,58 @@
+{
+  "image": "comtesse-atlas.webp",
+  "columns": 4,
+  "rows": 3,
+  "frameCount": 12,
+  "cellSize": 512,
+  "baseline": 0.96875,
+  "frames": [
+    {
+      "index": 0,
+      "relativeHeight": 0.9447
+    },
+    {
+      "index": 1,
+      "relativeHeight": 0.9299
+    },
+    {
+      "index": 2,
+      "relativeHeight": 0.949
+    },
+    {
+      "index": 3,
+      "relativeHeight": 0.9405
+    },
+    {
+      "index": 4,
+      "relativeHeight": 0.9044
+    },
+    {
+      "index": 5,
+      "relativeHeight": 0.9999
+    },
+    {
+      "index": 6,
+      "relativeHeight": 0.9214
+    },
+    {
+      "index": 7,
+      "relativeHeight": 0.9893
+    },
+    {
+      "index": 8,
+      "relativeHeight": 0.8428
+    },
+    {
+      "index": 9,
+      "relativeHeight": 0.8874
+    },
+    {
+      "index": 10,
+      "relativeHeight": 0.9086
+    },
+    {
+      "index": 11,
+      "relativeHeight": 0.9108
+    }
+  ]
+}

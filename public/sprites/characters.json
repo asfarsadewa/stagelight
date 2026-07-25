@@ -1,0 +1,23 @@
+{
+  "default": "mint",
+  "characters": [
+    {
+      "id": "mint",
+      "name": "Mint",
+      "tagline": "cropped hoodie, mint tips",
+      "scale": 1
+    },
+    {
+      "id": "shadow",
+      "name": "Shadow",
+      "tagline": "kunoichi, crimson scarf",
+      "scale": 1
+    },
+    {
+      "id": "comtesse",
+      "name": "Comtesse",
+      "tagline": "lace parasol, gold braid",
+      "scale": 1.14
+    }
+  ]
+}

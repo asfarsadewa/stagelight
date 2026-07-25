@@ -6,13 +6,13 @@ dist/
 .dev-shots/
 .dev-audio/
 
-# Intermediate art. The generation prompt and the shipped atlas are tracked;
+# Intermediate art. The generation prompts and the shipped atlases are tracked;
 # the multi-megabyte raw and keyed sheets are not.
-assets-src/dancer-raw.png
-assets-src/dancer-keyed.png
-assets-src/dancer-atlas.png
-assets-src/dancer-atlas-preview.png
-assets-src/atlas-check.png
+assets-src/*-raw.png
+assets-src/*-keyed.png
+assets-src/*-check.png
+assets-src/*-atlas.png
+assets-src/*-atlas-preview.png
 
 .DS_Store
 *.local

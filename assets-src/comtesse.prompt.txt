@@ -1,0 +1,26 @@
+A 2D game sprite sheet: exactly 12 frames of ONE anime woman dancing, arranged in a strict 4-column by 3-row grid, read left-to-right then top-to-bottom as a single looping dance cycle.
+
+CHARACTER (identical in every single frame — same face, same hair, same outfit, same proportions, same height):
+Elegant, poised anime noblewoman in her late twenties, tall and willowy, 7.5-heads tall, in the style of classic 1970s shoujo aristocratic romance. Long wavy platinum-blonde hair falling past her waist with voluminous curls and a sweeping side-parted fringe. Large violet eyes with long lashes, a serene knowing smile, small beauty mark under her left eye. She wears a white and gold rococo military-style tailcoat: high stand collar, gold frogging and braid across the chest, gold epaulettes on both shoulders, deep cuffs with gold trim. A cascading white lace cravat at her throat with a small ruby brooch. A long full ivory skirt with layered ruffles falling to her ankles. White elbow-length gloves. Cream heeled ankle boots.
+
+PROP: she carries a small open lace parasol in her RIGHT hand in every frame — ivory canopy with gold scalloped edging and a slim gold handle. The parasol is always held up and tilted over her right shoulder, angled behind her head. It never touches the ground, never covers her face, and never reaches the edge of its cell. It stays the same size in all 12 frames.
+
+FRAME ORDER (each frame is a distinct dance pose of the same continuous motion):
+1 neutral stance, weight centred, left arm relaxed at her side, parasol over right shoulder
+2 weight shifts to her right hip, left arm rising outward, parasol lifting slightly
+3 left arm up high, chest lifted, hair and skirt swinging up, parasol raised
+4 left arm sweeping down across the body to her left, hips left
+5 side step to her left, left knee bent, left arm pointing left
+6 spin mid-turn, seen three-quarter from behind-left, skirt and hair flaring, parasol trailing
+7 spin completing, three-quarter front-right, skirt still flaring
+8 landing wide stance, left arm crossed low in front
+9 curtsey-dip, knees bent, weight low, left elbow tucked in at her ribs
+10 leaping up, both feet off the ground, left arm thrown overhead, skirt lifted by the motion
+11 landing softly, one knee bent, left arm forward in an elegant point
+12 return toward neutral, left arm drifting down, slight bounce
+
+STYLE: clean modern anime cel-shading with a classic shoujo influence, crisp soft line art, flat even neutral front lighting with only gentle ambient occlusion, NO rim light, NO cast shadow, NO coloured lighting, NO glow — the sprite must look neutrally lit so a game engine can light it. Refined palette of ivory, white, warm gold and pale rose, with violet accents. Strong clear silhouette in every frame.
+
+LAYOUT: full body head-to-boots visible in every cell, feet near the bottom of the cell, identical camera distance and eye-level camera angle in all 12 frames, character vertically centred and horizontally centred in its cell, generous padding around each figure, frames evenly spaced with clear empty gutters between them. Her hair, skirt and parasol must all stay well inside their cell.
+
+BACKGROUND: perfectly flat solid #00ff00 chroma-key background filling every cell and every gutter. No shadows, no gradients, no texture, no reflections, no floor, no grid lines, no frame borders, no numbers, no text, no watermark. Do not use the colour #00ff00 anywhere on the character. Crisp clean edges.

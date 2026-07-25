@@ -3,7 +3,8 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { Dancer, loadDancer } from './dancer';
+import { Dancer } from './dancer';
+import { AtlasCache, BASE_HEIGHT, type Character } from './cast';
 import { Environment } from './environment';
 import { LightRig } from './rig';
 import type { DanceState } from '../choreo/director';
@@ -17,6 +18,7 @@ export class Stage {
   private readonly rig: LightRig;
   private readonly environment: Environment;
   private dancer: Dancer | null = null;
+  private atlases: AtlasCache | null = null;
 
   private readonly cameraTarget = new THREE.Vector3(0, 1.5, 0);
   private readonly canvas: HTMLCanvasElement;
@@ -58,10 +60,38 @@ export class Stage {
     this.resize();
   }
 
-  async loadAvatar(baseUrl: string) {
-    const { texture, meta } = await loadDancer(baseUrl);
-    this.dancer = new Dancer(texture, meta);
-    this.scene.add(this.dancer.group);
+  /**
+   * Swap in a different avatar. The outgoing dancer is only torn down once the
+   * replacement's atlas has arrived, so a mid-performance change never leaves
+   * an empty stage.
+   */
+  async setCharacter(character: Character, baseUrl: string) {
+    this.atlases ??= new AtlasCache(baseUrl);
+    const { texture, meta } = await this.atlases.load(character.id);
+
+    const dancer = new Dancer(texture, meta, BASE_HEIGHT * (character.scale ?? 1));
+    const outgoing = this.dancer;
+    this.dancer = dancer;
+    this.scene.add(dancer.group);
+
+    if (outgoing) {
+      this.scene.remove(outgoing.group);
+      outgoing.dispose();
+    }
+  }
+
+  /**
+   * Warm the remaining atlases so switching is instant. Called once the stage
+   * is already up, so it never competes with first paint — and the whole cast
+   * is smaller than a single sheet used to be, so there is nothing to weigh.
+   */
+  prefetchCharacters(characters: Character[], baseUrl: string) {
+    this.atlases ??= new AtlasCache(baseUrl);
+    for (const character of characters) {
+      void this.atlases.load(character.id).catch(() => {
+        // A failed warm-up is not an error; the real load will report it.
+      });
+    }
   }
 
   resize(forcedWidth?: number, forcedHeight?: number) {

@@ -221,6 +221,123 @@ body.dragging .pick {
   }
 }
 
+.cast {
+  margin-top: 1.4rem;
+}
+
+.cast-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+
+.cast-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: rgba(10, 13, 18, 0.34);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--ink-dim);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.3s var(--ease),
+    background 0.3s var(--ease),
+    color 0.3s var(--ease);
+}
+
+.cast-chip:hover:not([disabled]),
+.cast-chip:focus-visible {
+  border-color: rgba(143, 227, 255, 0.5);
+  color: var(--ink);
+  outline: none;
+}
+
+.cast-chip[aria-checked='true'] {
+  border-color: rgba(143, 227, 255, 0.65);
+  background: rgba(16, 26, 36, 0.6);
+  color: var(--ink);
+}
+
+.cast-chip[disabled] {
+  cursor: progress;
+  opacity: 0.55;
+}
+
+.cast-head {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(143, 227, 255, 0.06);
+  /* The portraits are cut close, so nudge the face up into the circle. */
+  object-fit: cover;
+  object-position: 50% 42%;
+  transition: background 0.3s var(--ease);
+}
+
+.cast-chip[aria-checked='true'] .cast-head {
+  background: rgba(143, 227, 255, 0.16);
+}
+
+.cast-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  text-align: left;
+}
+
+.cast-name {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.cast-tagline {
+  font-size: 0.63rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+}
+
+/* In the transport there is no room for taglines — names only. */
+.cast-row-compact {
+  display: flex;
+  gap: 0.3rem;
+}
+
+/* In the transport there is only room for the faces. */
+.cast-row-compact .cast-chip {
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--glass);
+}
+
+.cast-row-compact .cast-text {
+  display: none;
+}
+
+.cast-row-compact .cast-head {
+  width: 26px;
+  height: 26px;
+}
+
+@media (max-width: 860px) {
+  .cast-row-compact {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .cast-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .fine {
   margin: 1.6rem auto 0;
   max-width: 26rem;

@@ -100,6 +100,10 @@ def main() -> None:
     ap.add_argument("--preview", help="Optional dark-background contact sheet.")
     # Fraction of the cell height the tallest pose should occupy.
     ap.add_argument("--fill", type=float, default=0.92)
+    # WebP at this quality is visually indistinguishable from PNG at 3x
+    # magnification while being roughly a quarter of the size, and its alpha
+    # channel stays bit-identical so sprite edges never fringe.
+    ap.add_argument("--quality", type=int, default=92)
     args = ap.parse_args()
 
     sheet = Image.open(args.input).convert("RGBA")
@@ -146,7 +150,10 @@ def main() -> None:
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    atlas.save(out)
+    if out.suffix.lower() == ".webp":
+        atlas.save(out, "WEBP", quality=args.quality, method=6, alpha_quality=100)
+    else:
+        atlas.save(out)
 
     meta = {
         "image": out.name,

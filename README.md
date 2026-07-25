@@ -134,6 +134,49 @@ a 96 BPM loop with offbeat hi-hats was detected as 191 BPM, and a `weak` flag
 that almost never fired because it compared autocorrelation to the peak instead
 of to the envelope's variance. Both are fixed in `estimateTempo`.
 
+## The cast
+
+Three avatars, swappable from the picker at any time — including mid-track:
+
+| id | who |
+| --- | --- |
+| `mint` | cropped hoodie, silver bob with mint tips |
+| `shadow` | kunoichi in black, crimson scarf |
+| `comtesse` | rococo noblewoman with a lace parasol |
+
+Every character is drawn to the **same twelve-pose contract in the same frame
+order**, so the whole choreography and transition grammar is shared — a new
+avatar is genuinely just a different sheet of paper. Adding one means generating
+a sheet against the same frame list, running the two build steps below, and
+adding a line to `public/sprites/characters.json`.
+
+`scale` in the manifest exists because atlases are normalised against their own
+tallest pose: the Comtesse's parasol eats into her height budget, so she is
+drawn smaller and scaled back up to read as the adult she is.
+
+### Why the atlases are WebP
+
+They started as PNGs at 1.3–2.3 MB each, which made "preload the whole cast"
+a real trade-off. WebP at quality 92 removes the trade-off entirely:
+
+| | PNG | WebP q92 |
+| --- | --- | --- |
+| mint | 1324 KB | 349 KB |
+| shadow | 1265 KB | 298 KB |
+| comtesse | 2317 KB | 575 KB |
+| **all three** | **4906 KB** | **1222 KB** |
+
+The whole cast now costs less than one sheet used to. Measured on visible
+pixels only, that is 33–38 dB PSNR, and the **alpha channel is bit-identical**,
+so sprite edges cannot fringe — the encoder is told `alpha_quality=100` and only
+the colour is lossy. At 3× magnification it is indistinguishable from the PNG,
+and on stage the sprite is downscaled rather than magnified.
+
+So the default atlas loads first and the rest are warmed on
+`requestIdleCallback` once the stage is already up. First paint is never held
+up, and by the time anyone reaches for the picker the switch is instant —
+measured at 8 ms with no network at all.
+
 ## Art pipeline
 
 The atlas is generated, not hand-drawn:
@@ -150,9 +193,18 @@ python ~/.claude/skills/sprite-pipeline/scripts/remove_chroma_key.py \
   --auto-key border --soft-matte --despill
 
 # 3. fixed-cell atlas
-python tools/build_atlas.py --input assets-src/dancer-keyed.png \
-  --out public/sprites/dancer-atlas.png --meta public/sprites/dancer-atlas.json
+python tools/build_atlas.py --input assets-src/mint-keyed.png \
+  --out public/sprites/mint-atlas.png --meta public/sprites/mint-atlas.json
+
+# 4. head portraits for the picker, cut from the finished atlases
+python tools/build_heads.py
 ```
+
+`build_heads.py` crops from the sprite sheet rather than generating separate
+portraits, so the face on the picker is the face that appears on stage and
+cannot drift as sheets are regenerated. The crop boxes are hand-picked per
+character because the heads cannot be found by alpha alone — the Comtesse's
+parasol canopy merges with her hair into a single silhouette.
 
 `tools/build_atlas.py` deliberately uses **one global scale** for every frame and
 anchors on the feet, so a crouch really is shorter than a standing pose. Scaling
