@@ -56,6 +56,50 @@ layers them:
 - **Procedural motion** on top — an arc through each pose, kick-driven squash,
   extra airtime on the jump and spin poses, slow sway and lean.
 
+## Exporting a performance
+
+The **Record** button in the transport captures the stage to a local file:
+`canvas.captureStream()` for video, a `MediaStreamAudioDestinationNode` tapped
+off the analyser for audio, muxed live by `MediaRecorder` into VP9/Opus WebM and
+handed straight to the browser's download. Nothing is uploaded and nothing is
+transcoded on a server, so the privacy promise is unchanged.
+
+Recording starts from wherever you are — press it before playing for a whole
+performance, or mid-track for a short clip — and stops automatically at the end
+of the track. You get `cosmic-dance-stagelight.webm`.
+
+Known limitation: `MediaRecorder` does not write a duration into the WebM
+header, so some players report the length as unknown until the file is fully
+loaded. It plays and uploads correctly; fixing it properly means rewriting the
+EBML header after the fact.
+
+## Tests
+
+```bash
+npm test
+```
+
+67 tests, no DOM and no network — everything under test is pure, and every
+signal is synthesised from a seeded generator so runs are bit-for-bit
+repeatable.
+
+- `tests/fft.test.ts` — the transform against a naive DFT, plus Parseval,
+  bin placement and window symmetry.
+- `tests/analyze.test.ts` — tempo lock at five tempi on synthetic drum loops,
+  beat *phase* (not just spacing), octave-error resistance, downbeat count,
+  and that silence and structureless noise are reported `weak` rather than
+  guessed at.
+- `tests/director.test.ts` — that waiting never uses a dance pose or pulses the
+  rig, that frames stay inside the atlas, that seeking replays identical
+  choreography, and that only airborne poses leave the ground.
+- `tests/recorder.test.ts` — export filename handling, including accents,
+  punctuation, truncation and empty input.
+
+The suite earned its keep immediately: it caught a **tempo octave error** where
+a 96 BPM loop with offbeat hi-hats was detected as 191 BPM, and a `weak` flag
+that almost never fired because it compared autocorrelation to the peak instead
+of to the envelope's variance. Both are fixed in `estimateTempo`.
+
 ## Art pipeline
 
 The atlas is generated, not hand-drawn:

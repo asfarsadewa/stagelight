@@ -419,6 +419,52 @@ body.idle {
   outline: none;
 }
 
+.ghost[hidden] {
+  display: none;
+}
+
+.record {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rec-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  transition: background 0.3s var(--ease);
+}
+
+body.recording .record {
+  color: var(--danger);
+}
+
+body.recording .rec-dot {
+  border-color: var(--danger);
+  background: var(--danger);
+  animation: blink 1.4s steps(1, end) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* While capturing, the chrome must stay reachable — you need the stop button. */
+body.recording.idle #transport {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+body.recording.idle {
+  cursor: default;
+}
+
 @media (max-width: 540px) {
   .readout {
     display: none;

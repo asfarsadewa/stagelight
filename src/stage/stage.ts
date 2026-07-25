@@ -27,8 +27,12 @@ export class Stage {
       canvas,
       antialias: true,
       powerPreference: 'high-performance',
-      // Only in dev, so frames can be captured for visual checks.
-      preserveDrawingBuffer: import.meta.env.DEV,
+      // Kept on in production too. captureStream() is specified to work
+      // without it, but implementations have historically handed back blank
+      // frames from a WebGL canvas whose buffer was already discarded — and a
+      // black export is a far worse trade than the small cost of retaining the
+      // buffer on a scene this light.
+      preserveDrawingBuffer: true,
     });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;

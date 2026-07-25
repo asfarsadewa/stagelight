@@ -3,6 +3,12 @@ import { AudioSession } from './audio/session';
 import { Director } from './choreo/director';
 import { Stage } from './stage/stage';
 import { Chime } from './ui/chime';
+import {
+  PerformanceRecorder,
+  exportFileName,
+  isRecordingSupported,
+  saveRecording,
+} from './video/recorder';
 
 const el = <T extends Element = HTMLElement>(id: string): T => {
   const node = document.getElementById(id);
@@ -25,6 +31,8 @@ const scrubFill = el('scrub-fill');
 const elapsedLabel = el('elapsed');
 const totalLabel = el('total');
 const readout = el('readout');
+const recordButton = el<HTMLButtonElement>('record');
+const recordLabel = el('record-label');
 
 const PLAY_PATH = 'M8 5v14l11-7z';
 const PAUSE_PATH = 'M7 5h3.2v14H7zM13.8 5H17v14h-3.2z';
@@ -33,6 +41,10 @@ const session = new AudioSession();
 const director = new Director();
 const stage = new Stage(canvas);
 const chime = new Chime();
+const recorder = new PerformanceRecorder();
+
+/** Name of the loaded track, used for the exported filename. */
+let trackLabel = 'performance';
 
 let busy = false;
 /** A sample download is in flight; keeps a second intake from racing it. */
@@ -79,6 +91,8 @@ async function acceptSample(fileName: string, label: string) {
     const blob = await fetchWithProgress(url, (p) => setProgress(0.02 + p * 0.2, 'Fetching'));
     fetching = false;
     await accept(new File([blob], fileName, { type: 'audio/mpeg' }), { silent: true });
+    // Prefer the display name over the slugified filename for the export.
+    trackLabel = label;
   } catch {
     analysing.hidden = true;
     intake.hidden = false;
@@ -138,6 +152,7 @@ async function accept(file: File, { silent = false } = {}) {
   }
 
   busy = true;
+  trackLabel = file.name;
   if (!silent) {
     chime.accept();
     analysisName.textContent = file.name;
@@ -193,6 +208,8 @@ playpause.addEventListener('click', () => {
 });
 
 el('eject').addEventListener('click', () => {
+  recorder.cancel();
+  reflectRecordState();
   session.stop();
   director.setAnalysis(null);
   transport.hidden = true;
@@ -202,9 +219,51 @@ el('eject').addEventListener('click', () => {
 });
 
 session.onEnded = () => {
+  // Finish the file at the end of the track rather than leaving it running.
+  if (recorder.isRecording) void finishRecording();
   reflectPlayState();
   document.body.classList.remove('idle');
 };
+
+/* ---------------------------------------------------------------- recording */
+
+recordButton.hidden = !isRecordingSupported();
+
+recordButton.addEventListener('click', () => {
+  if (recorder.isRecording) {
+    void finishRecording();
+    return;
+  }
+  try {
+    // Capture starts wherever you are: press it before playing for the whole
+    // performance, or mid-track for a short clip worth sharing.
+    if (!session.isPlaying) session.play();
+    recorder.start(canvas, session.captureAudioStream());
+    reflectPlayState();
+    reflectRecordState();
+  } catch (err) {
+    fail(err instanceof Error ? err.message : 'Recording could not start.');
+  }
+});
+
+async function finishRecording() {
+  try {
+    const { blob } = await recorder.stop();
+    saveRecording(blob, exportFileName(trackLabel));
+  } catch (err) {
+    intakeError.textContent = err instanceof Error ? err.message : 'Recording failed.';
+    intakeError.hidden = false;
+  } finally {
+    reflectRecordState();
+  }
+}
+
+function reflectRecordState() {
+  const recording = recorder.isRecording;
+  document.body.classList.toggle('recording', recording);
+  recordButton.setAttribute('aria-label', recording ? 'Stop recording' : 'Record video');
+  if (!recording) recordLabel.textContent = 'Record';
+}
 
 function reflectPlayState() {
   const playing = session.isPlaying;
@@ -333,6 +392,10 @@ function frame(now: number) {
     scrubFill.style.width = `${(ratio * 100).toFixed(2)}%`;
     scrub.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
     elapsedLabel.textContent = formatTime(position);
+  }
+
+  if (recorder.isRecording) {
+    recordLabel.textContent = `Stop ${formatTime(recorder.elapsedMs / 1000)}`;
   }
 
   requestAnimationFrame(frame);

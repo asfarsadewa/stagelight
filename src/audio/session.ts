@@ -21,6 +21,7 @@ export class AudioSession {
   private source: AudioBufferSourceNode | null = null;
   private gain: GainNode | null = null;
   private analyserNode: AnalyserNode | null = null;
+  private recordDestination: MediaStreamAudioDestinationNode | null = null;
   private freqData: Uint8Array<ArrayBuffer> = new Uint8Array(new ArrayBuffer(0));
 
   /** Context time at which playback position 0 would have occurred. */
@@ -51,8 +52,20 @@ export class AudioSession {
 
     const bytes = await file.arrayBuffer();
     const ctx = this.ensureContext();
-    // decodeAudioData detaches the buffer, so hand it a copy we own.
-    const buffer = await ctx.decodeAudioData(bytes.slice(0));
+
+    let buffer: AudioBuffer;
+    try {
+      // decodeAudioData detaches the buffer, so hand it a copy we own.
+      buffer = await ctx.decodeAudioData(bytes.slice(0));
+    } catch {
+      // The platform decoder's own message is just "Unable to decode audio
+      // data", which does not hint at the usual cause: a container this
+      // browser opens fine holding a codec it cannot read. Apple Lossless in
+      // an .m4a is the common one — Safari decodes it, nothing else does.
+      throw new Error(
+        'Your browser could not decode that file. MP3, WAV, AAC and OGG all work; Apple Lossless does not, outside Safari.',
+      );
+    }
     this.buffer = buffer;
 
     onProgress({ value: 0.12, stage: 'Preparing' });
@@ -73,17 +86,8 @@ export class AudioSession {
     const source = ctx.createBufferSource();
     source.buffer = this.buffer;
 
-    const gain = this.gain ?? ctx.createGain();
-    const analyser = this.analyserNode ?? ctx.createAnalyser();
-    analyser.fftSize = 1024;
-    analyser.smoothingTimeConstant = 0.72;
-    if (this.freqData.length !== analyser.frequencyBinCount) {
-      this.freqData = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
-    }
-
+    const { gain } = this.ensureGraph();
     source.connect(gain);
-    gain.connect(analyser);
-    analyser.connect(ctx.destination);
 
     const offset = this.pausedAt >= this.duration - 0.05 ? 0 : this.pausedAt;
     source.start(0, offset);
@@ -98,9 +102,43 @@ export class AudioSession {
     };
 
     this.source = source;
-    this.gain = gain;
-    this.analyserNode = analyser;
     this.playing = true;
+  }
+
+  /**
+   * The graph downstream of the buffer source, built once and kept for the
+   * life of the session. Sources come and go on every play and seek; the
+   * analyser and any recording tap must not, or a recording would be cut off
+   * the first time someone scrubs.
+   */
+  private ensureGraph(): { gain: GainNode; analyser: AnalyserNode } {
+    const ctx = this.ensureContext();
+    if (!this.gain || !this.analyserNode) {
+      const gain = ctx.createGain();
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.72;
+      gain.connect(analyser);
+      analyser.connect(ctx.destination);
+      this.gain = gain;
+      this.analyserNode = analyser;
+      this.freqData = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+    }
+    return { gain: this.gain, analyser: this.analyserNode };
+  }
+
+  /**
+   * A stream carrying exactly what reaches the speakers, for muxing into a
+   * recording. Tapped off the analyser so it stays connected across seeks.
+   */
+  captureAudioStream(): MediaStream {
+    const ctx = this.ensureContext();
+    const { analyser } = this.ensureGraph();
+    if (!this.recordDestination) {
+      this.recordDestination = ctx.createMediaStreamDestination();
+      analyser.connect(this.recordDestination);
+    }
+    return this.recordDestination.stream;
   }
 
   pause(): void {
