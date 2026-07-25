@@ -211,6 +211,27 @@ anchors on the feet, so a crouch really is shorter than a standing pose. Scaling
 each pose to fill its own cell — the usual default — makes the figure pop between
 frames.
 
+It also strips anything in a cell that is not the figure it belongs to. The
+generated grid is not perfectly aligned, so a figure whose parasol or raised arm
+overruns its cell leaves a fragment in the neighbouring one — every sheet had
+this in the spin-back frame, where the row below reaches up into it.
+
+That is worse than a stray mark. Debris at the *bottom* of a cell is taken for
+the figure's lowest point, so it drags the alpha bbox down and the foot anchor
+with it: the sprite ends up mis-scaled and floating above the deck. Removing the
+Comtesse's bleed changed her whole atlas scale by 5%, because the fragment had
+been setting the tallest-pose reference for all twelve frames.
+
+The rule is that bleed always enters through a cell border while the figure is
+only ever the largest component, so the build keeps the largest and drops any
+other component that is tiny or touching an edge. Each run reports what it
+removed rather than doing it silently:
+
+```
+atlas=public/sprites/comtesse-atlas.webp cells=4x3 cell=512 scale=0.9875
+  cleaned 3 cell(s): f5:3057+842px f6:105px f7:537px
+```
+
 ## Stage
 
 `src/stage/` — four moving heads with visible beams, a warm key, a clipped back

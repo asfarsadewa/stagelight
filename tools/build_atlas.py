@@ -23,19 +23,37 @@ from PIL import Image
 COLUMNS = 4
 ROWS = 3
 ALPHA_THRESHOLD = 16
+# Removals at or above this are worth naming in the build output; anything
+# smaller is anti-aliasing shaking loose from the chroma key.
+NOTABLE_REMOVAL = 40
 
 
-def despeckle(img: Image.Image, min_area: int = 400) -> Image.Image:
-    """Drop tiny disconnected alpha blobs left behind by the chroma key.
+def clean_cell(img: Image.Image, min_area: int = 400) -> tuple[Image.Image, list[int]]:
+    """Strip everything from a cell that is not the figure it belongs to.
 
-    They are invisible on the source sheet but show up clearly once the sprite
-    is composited over a dark stage, as flecks hanging in mid-air.
+    Two kinds of debris turn up:
+
+    * Tiny disconnected blobs left by the chroma key. Invisible on the source
+      sheet, but obvious flecks hanging in mid-air over a dark stage.
+    * Bleed from a neighbouring cell. The generated grid is not perfectly
+      aligned, so a figure whose parasol or raised arm overruns its cell shows
+      up as a fragment inside the next one.
+
+    Bleed matters more than it looks. Anything at the bottom of a cell is taken
+    for the figure's lowest point, so a stray fragment there drags the alpha
+    bbox down and the foot anchor with it — the sprite ends up scaled wrongly
+    and floating above the deck.
+
+    The distinguishing property, confirmed across all three sheets, is that
+    bleed always enters through a cell border while the figure itself is only
+    ever the largest component. So: keep the largest, and of the rest drop
+    anything that is either tiny or touching an edge.
     """
     alpha = img.getchannel("A")
     w, h = alpha.size
     px = alpha.load()
     seen = bytearray(w * h)
-    doomed: list[tuple[int, int]] = []
+    blobs: list[tuple[list[tuple[int, int]], bool]] = []
 
     for sy in range(h):
         for sx in range(w):
@@ -46,23 +64,37 @@ def despeckle(img: Image.Image, min_area: int = 400) -> Image.Image:
             stack = [(sx, sy)]
             seen[i] = 1
             blob = []
+            touches_edge = False
             while stack:
                 x, y = stack.pop()
                 blob.append((x, y))
+                if x == 0 or y == 0 or x == w - 1 or y == h - 1:
+                    touches_edge = True
                 for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
                     if 0 <= nx < w and 0 <= ny < h:
                         j = ny * w + nx
                         if not seen[j] and px[nx, ny] > ALPHA_THRESHOLD:
                             seen[j] = 1
                             stack.append((nx, ny))
-            if len(blob) < min_area:
-                doomed.extend(blob)
+            blobs.append((blob, touches_edge))
 
+    if not blobs:
+        return img, []
+
+    largest = max(range(len(blobs)), key=lambda i: len(blobs[i][0]))
+    doomed: list[tuple[int, int]] = []
+    for i, (blob, touches_edge) in enumerate(blobs):
+        if i == largest:
+            continue
+        if len(blob) < min_area or touches_edge:
+            doomed.extend(blob)
+
+    removed = [len(blob) for i, (blob, edge) in enumerate(blobs) if i != largest and (len(blob) < min_area or edge)]
     if doomed:
         for x, y in doomed:
             px[x, y] = 0
         img.putalpha(alpha)
-    return img
+    return img, removed
 
 
 def alpha_bbox(img: Image.Image) -> tuple[int, int, int, int] | None:
@@ -111,9 +143,19 @@ def main() -> None:
     src_h = sheet.height // ROWS
 
     frames = []
+    cleaned: list[str] = []
     for row in range(ROWS):
         for col in range(COLUMNS):
-            cell = despeckle(sheet.crop((col * src_w, row * src_h, (col + 1) * src_w, (row + 1) * src_h)))
+            cell, removed = clean_cell(
+                sheet.crop((col * src_w, row * src_h, (col + 1) * src_w, (row + 1) * src_h))
+            )
+            # Reported rather than silent: debris at the bottom of a cell shifts
+            # the foot anchor, so it is worth seeing when it happens. Single
+            # pixels are just anti-aliasing coming loose from the key, and would
+            # bury the entries that matter.
+            notable = sorted((r for r in removed if r >= NOTABLE_REMOVAL), reverse=True)
+            if notable:
+                cleaned.append(f"f{row * COLUMNS + col}:{'+'.join(str(r) for r in notable)}px")
             bbox = alpha_bbox(cell)
             if bbox is None:
                 raise SystemExit(f"frame {row * COLUMNS + col} is empty — check the chroma key")
@@ -172,6 +214,8 @@ def main() -> None:
         bg.convert("RGB").save(args.preview)
 
     print(f"atlas={out} cells={COLUMNS}x{ROWS} cell={cell} scale={scale:.4f}")
+    if cleaned:
+        print(f"  cleaned {len(cleaned)} cell(s): {' '.join(cleaned)}")
 
 
 if __name__ == "__main__":
