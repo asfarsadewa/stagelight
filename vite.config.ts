@@ -41,6 +41,12 @@ function frameCapture(): Plugin {
 
 export default defineConfig({
   plugins: [frameCapture()],
+  test: {
+    // Everything under test is pure: DSP, choreography and filename handling.
+    // Nothing here needs a DOM, which keeps the suite fast and deterministic.
+    environment: 'node',
+    include: ['tests/**/*.test.ts'],
+  },
   build: {
     target: 'es2022',
     outDir: 'dist',
