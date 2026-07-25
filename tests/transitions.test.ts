@@ -217,6 +217,26 @@ describe('afterimage', () => {
     }
   });
 
+  it('does not drift sideways on a purely vertical cut', () => {
+    // A crouch-to-jump travels straight up. Any lateral offset here reads as
+    // the sprite briefly misregistering to one side.
+    const vertical = sample(0.9, 90).filter(
+      (s) => s.ghostAmount > 0.02 && (s.transition === 'rise' || s.transition === 'drop'),
+    );
+    expect(vertical.length).toBeGreaterThan(0);
+    for (const state of vertical) {
+      // Math.abs so a negative zero, which renders identically, still passes.
+      expect(Math.abs(state.ghostOffsetX)).toBe(0);
+      expect(Math.abs(state.ghostOffsetY)).toBeGreaterThan(0);
+    }
+  });
+
+  it('does smear sideways through a turn', () => {
+    const turns = sample(0.9, 90).filter((s) => s.ghostAmount > 0.05 && s.transition === 'turn');
+    expect(turns.length).toBeGreaterThan(0);
+    expect(turns.some((s) => Math.abs(s.ghostOffsetX) > 0)).toBe(true);
+  });
+
   it('trails behind the movement rather than leading it', () => {
     const states = sample(0.9, 60).filter((s) => s.ghostAmount > 0.05);
     expect(states.length).toBeGreaterThan(0);

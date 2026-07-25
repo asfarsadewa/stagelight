@@ -144,6 +144,20 @@ export class Director {
   }
 
   /**
+   * Whether the detected beat grid may be used at all.
+   *
+   * `weak` means the analyser could not find a dependable pulse — ambient,
+   * spoken word, rubato. Everything downstream of timing has to honour that,
+   * not merely report it: driving choreography from a grid we have already
+   * rejected is worse than free-running, because it locks confidently to the
+   * wrong thing.
+   */
+  private get gridUsable(): boolean {
+    const a = this.analysis;
+    return !!a && !a.weak && a.beats.length >= 2;
+  }
+
+  /**
    * @param time     playback position in seconds, or a free-running clock while waiting
    * @param dt       real elapsed time since the last call, for smoothing
    * @param live     optional realtime spectrum energies, blended with the offline
@@ -157,8 +171,10 @@ export class Director {
     waiting = false,
   ): DanceState {
     const a = this.analysis;
-    const freeRunning = !a || a.weak;
     const bands = this.sampleBands(time, dt, live);
+    // The flag now states exactly what the timing is doing, rather than
+    // describing an intent the rest of the method ignored.
+    const freeRunning = !this.gridUsable;
 
     // No track, or the track is stopped: she has nothing to dance to.
     if (waiting || !a) return this.waiting(time, bands);
@@ -172,7 +188,11 @@ export class Director {
     const barPhase = (beatInBar + beatPhase) / BEATS_PER_BAR;
 
     // Intensity leads the arrangement slightly so a build lands with the drop.
-    const target = a.beatEnergy[Math.min(a.beatEnergy.length - 1, beatIndex + 1)] ?? 0;
+    // With no usable grid there is nothing to lead, so read loudness directly
+    // rather than indexing per-beat energy by a beat number we invented.
+    const target = this.gridUsable
+      ? a.beatEnergy[Math.min(a.beatEnergy.length - 1, beatIndex + 1)] ?? 0
+      : bands.level;
     this.smoothedIntensity += (target - this.smoothedIntensity) * Math.min(1, dt * 2.2);
     const intensity = clamp01(this.smoothedIntensity * 0.75 + bands.level * 0.25);
 
@@ -198,7 +218,8 @@ export class Director {
       stretchX: motion.stretchX,
       intensity,
       ...bands,
-      bpm: a.bpm,
+      // Report the tempo actually driving the stage, not the rejected estimate.
+      bpm: this.gridUsable ? a.bpm : FALLBACK_BPM,
       moveName: cut.moveName,
       transition: cut.kind,
       freeRunning,
@@ -211,19 +232,37 @@ export class Director {
   /** Average arrangement energy over a bar, the basis for choosing its move. */
   private barEnergy(barIndex: number): number {
     const a = this.analysis;
-    if (!a || a.beatEnergy.length === 0) {
-      // Free-running: a slow deterministic swell, so the routine still varies.
-      return 0.3 + 0.18 * Math.sin(barIndex * 0.7);
+
+    if (a && this.gridUsable && a.beatEnergy.length > 0) {
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < BEATS_PER_BAR; i++) {
+        const beat = barIndex * BEATS_PER_BAR + i;
+        if (beat >= a.beatEnergy.length) break;
+        sum += a.beatEnergy[beat];
+        count++;
+      }
+      return count > 0 ? sum / count : 0;
     }
-    let sum = 0;
-    let count = 0;
-    for (let i = 0; i < BEATS_PER_BAR; i++) {
-      const beat = barIndex * BEATS_PER_BAR + i;
-      if (beat >= a.beatEnergy.length) break;
-      sum += a.beatEnergy[beat];
-      count++;
+
+    // Grid rejected, but there is still audio: read loudness straight off the
+    // timeline. beatEnergy is indexed by the discarded grid, so sampling it
+    // against fallback bars would pair 104 BPM timing with someone else's beats.
+    if (a && a.bands.level.length > 0) {
+      const barSeconds = (60 / FALLBACK_BPM) * BEATS_PER_BAR;
+      const from = Math.floor(barIndex * barSeconds * a.frameRate);
+      const to = Math.floor((barIndex + 1) * barSeconds * a.frameRate);
+      let sum = 0;
+      let count = 0;
+      for (let f = Math.max(0, from); f < Math.min(to, a.bands.level.length); f++) {
+        sum += a.bands.level[f];
+        count++;
+      }
+      if (count > 0) return sum / count;
     }
-    return count > 0 ? sum / count : 0;
+
+    // No track at all: a slow deterministic swell, so the routine still varies.
+    return 0.3 + 0.18 * Math.sin(barIndex * 0.7);
   }
 
   /** Extend the plan so that `barIndex` and its immediate neighbours exist. */
@@ -357,7 +396,14 @@ export class Director {
     const stretchX =
       1 + pre.preStretchX * anticipation * amp + post.postStretchX * settlement * amp;
 
-    return { lift, lean, squash, stretchX, ghost: this.ghost(cut, intensity, beatDuration, postDir) };
+    // Only a turn or a gesture actually travels sideways. Reusing the lean's
+    // direction here would give a purely vertical crouch-to-jump a lateral
+    // smear, which reads as the sprite briefly misregistering to one side.
+    const facingShift = meta(cut.displayed).facing - meta(cut.previous).facing;
+    const smearX =
+      cut.kind === 'turn' || cut.kind === 'gesture' ? Math.sign(facingShift) : 0;
+
+    return { lift, lean, squash, stretchX, ghost: this.ghost(cut, intensity, beatDuration, smearX) };
   }
 
   /**
@@ -371,7 +417,8 @@ export class Director {
     cut: ReturnType<Director['locate']>,
     intensity: number,
     beatDuration: number,
-    direction: number,
+    /** Horizontal travel direction; zero for cuts that only move vertically. */
+    smearX: number,
   ) {
     const recipe = RECIPES[cut.kind];
     if (recipe.ghost <= 0 || intensity < GHOST_INTENSITY_GATE) {
@@ -390,7 +437,7 @@ export class Director {
     return {
       ghostAmount: strength,
       // Trailing behind the movement, so it reads as a smear rather than a twin.
-      ghostOffsetX: -direction * 0.09 * strength,
+      ghostOffsetX: -smearX * 0.09 * strength,
       ghostOffsetY: -Math.sign(rise) * 0.11 * strength,
     };
   }
@@ -488,8 +535,9 @@ export class Director {
   /** Playback time as a fractional beat index, interpolating within each beat. */
   private beatPosition(time: number): number {
     const a = this.analysis;
-    if (!a || a.beats.length < 2) {
-      return Math.max(0, time) / (60 / (a?.bpm || FALLBACK_BPM));
+    if (!a || !this.gridUsable) {
+      // Not a.bpm: when the grid is rejected its tempo estimate goes with it.
+      return Math.max(0, time) / (60 / FALLBACK_BPM);
     }
     const i = this.findBeat(a.beats, time);
     const start = a.beats[i];
@@ -501,7 +549,7 @@ export class Director {
 
   private beatDurationAt(beatPos: number): number {
     const a = this.analysis;
-    if (!a || a.beats.length < 2) return 60 / (a?.bpm || FALLBACK_BPM);
+    if (!a || !this.gridUsable) return 60 / FALLBACK_BPM;
     const i = Math.max(0, Math.min(a.beats.length - 2, Math.floor(beatPos)));
     return Math.max(1e-3, a.beats[i + 1] - a.beats[i]);
   }

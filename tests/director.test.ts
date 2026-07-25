@@ -231,6 +231,45 @@ describe('Director — degraded input', () => {
     expect(state.idle).toBe(false);
   });
 
+  it('actually ignores a weak grid instead of only reporting that it did', () => {
+    // Same audio, wildly different (and untrustworthy) beat positions. If the
+    // rejected grid still drove timing, these would diverge. Asserting the
+    // freeRunning flag alone never caught that.
+    const base = fakeAnalysis({ weak: true, seconds: 120 });
+    const scrambled: AnalysisResult = {
+      ...base,
+      bpm: 61,
+      beats: Float32Array.from(base.beats, (_, i) => i * 0.98 + (i % 3) * 0.21),
+    };
+
+    const routine = (analysis: AnalysisResult) => {
+      const director = new Director();
+      director.setAnalysis(analysis);
+      const out: string[] = [];
+      for (let t = 0; t < 45; t += 1 / 60) {
+        const s = director.update(t, 1 / 60);
+        out.push(`${s.moveName}:${s.frame}`);
+      }
+      return out;
+    };
+
+    expect(routine(scrambled)).toEqual(routine(base));
+  });
+
+  it('reports the tempo that is driving the stage, not the rejected estimate', () => {
+    const director = new Director();
+    director.setAnalysis(fakeAnalysis({ weak: true, bpm: 177 }));
+    expect(settle(director, 10).bpm).not.toBe(177);
+  });
+
+  it('still varies its routine on weak material', () => {
+    const director = new Director();
+    director.setAnalysis(fakeAnalysis({ weak: true, seconds: 120 }));
+    const frames = new Set<number>();
+    for (let t = 0; t < 60; t += 1 / 60) frames.add(director.update(t, 1 / 60).frame);
+    expect(frames.size).toBeGreaterThan(2);
+  });
+
   it('falls back to waiting when an analysis has no usable grid', () => {
     const director = new Director();
     const empty = fakeAnalysis();
