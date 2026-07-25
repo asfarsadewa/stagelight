@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { createRetroPass } from './retro';
 import { Dancer } from './dancer';
 import { AtlasCache, BASE_HEIGHT, type Character } from './cast';
 import { Environment } from './environment';
@@ -15,6 +16,7 @@ export class Stage {
   private readonly camera: THREE.PerspectiveCamera;
   private readonly composer: EffectComposer;
   private readonly bloom: UnrealBloomPass;
+  private readonly retro: ReturnType<typeof createRetroPass>;
   private readonly rig: LightRig;
   private readonly environment: Environment;
   private dancer: Dancer | null = null;
@@ -56,6 +58,10 @@ export class Stage {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.42, 0.7, 0.95);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+    // Last, after tone mapping and sRGB encoding — a tape deck sits in front of
+    // the screen, not inside the lighting.
+    this.retro = createRetroPass();
+    this.composer.addPass(this.retro);
 
     this.resize();
   }
@@ -78,6 +84,15 @@ export class Stage {
       this.scene.remove(outgoing.group);
       outgoing.dispose();
     }
+  }
+
+  /** Run the stage through a tape deck. */
+  setRetro(on: boolean) {
+    this.retro.enabled = on;
+  }
+
+  get retroEnabled(): boolean {
+    return this.retro.enabled;
   }
 
   /**
@@ -104,6 +119,10 @@ export class Stage {
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(width, height);
     this.bloom.resolution.set(width, height);
+    (this.retro.uniforms.uResolution.value as THREE.Vector2).set(
+      width * pixelRatio,
+      height * pixelRatio,
+    );
 
     this.camera.aspect = width / height;
     // On a narrow viewport, back off so she still fits head-to-toe.
@@ -125,6 +144,12 @@ export class Stage {
 
     this.bloom.strength = 0.26 + state.intensity * 0.34 + state.beatPulse * 0.14;
     this.renderer.toneMappingExposure = 1.0 + state.beatPulse * 0.07 * state.intensity;
+
+    if (this.retro.enabled) {
+      this.retro.uniforms.uTime.value = time;
+      // Tracking errors land on the music instead of drifting past it.
+      this.retro.uniforms.uBeat.value = state.beatPulse * (0.35 + state.intensity * 0.65);
+    }
 
     this.composer.render();
   }

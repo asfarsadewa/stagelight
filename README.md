@@ -13,7 +13,7 @@ tab closes. There is no backend.
 npm install && npm run dev
 ```
 
-Keyboard: **space** play/pause, **←/→** seek 5s, **F** fullscreen.
+Keyboard: **space** play/pause, **←/→** seek 5s, **V** VHS mode, **F** fullscreen.
 
 ## Deploying
 
@@ -89,6 +89,30 @@ gives you four arms and two heads. Instead the outgoing drawing is held behind
 the new one for ~80 ms, additive, tinted with the rim light and offset against
 the direction of travel. It is gated to high intensity and hard cuts, and capped
 to a fraction of the step so fast eight-step bars do not ghost throughout.
+
+## VHS mode
+
+`V`, or the button in the transport, runs the whole stage through a tape deck:
+CRT curvature, tracking-band skew, chroma bleed, print-through ghosting, grain,
+dropouts, wobble, scanlines and vignette. Adapted from the same effect in the
+sibling `spaceshooter` project, with three changes this stage needed:
+
+- **It runs as the last composer pass**, after `OutputPass` has tone-mapped and
+  encoded to sRGB. The original ended with its own gamma curve; keeping that
+  here would double-encode and wash the set out.
+- **The black lift is much gentler.** The original suits a bright arcade game;
+  this stage is deliberately almost all shadow, and lifting it reads as fog
+  rather than tape. Scanlines, vignette and desaturation each take a further
+  bite, so some gain is put back — otherwise the mode reads as "someone turned
+  the lights off".
+- **The tracking band is gated.** It sweeps continuously, so without a gate
+  there is always one somewhere on screen, which looks like a broken display
+  instead of a tape occasionally losing its footing. It now shows in roughly a
+  third of frames, and bites harder on the beat — tracking errors land on the
+  music rather than drifting past it.
+
+Because the effect is drawn into the canvas, a recorded performance captures it
+too.
 
 ## Exporting a performance
 

@@ -226,6 +226,18 @@ session.onEnded = () => {
   document.body.classList.remove('idle');
 };
 
+/* ---------------------------------------------------------------- vhs mode */
+
+const retroButton = el<HTMLButtonElement>('retro');
+
+function setRetro(on: boolean) {
+  stage.setRetro(on);
+  retroButton.setAttribute('aria-pressed', String(on));
+  document.body.classList.toggle('retro', on);
+}
+
+retroButton.addEventListener('click', () => setRetro(!stage.retroEnabled));
+
 /* ---------------------------------------------------------------- recording */
 
 recordButton.hidden = !isRecordingSupported();
@@ -307,6 +319,20 @@ window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLElement && ['INPUT', 'BUTTON'].includes(e.target.tagName) && e.key === ' ') {
     return; // let the focused control handle its own activation
   }
+  // Display modes work with or without a track — they belong to the stage,
+  // not to playback, and are worth trying before you commit a file.
+  if (e.key.toLowerCase() === 'v') {
+    setRetro(!stage.retroEnabled);
+    markActive();
+    return;
+  }
+  if (e.key.toLowerCase() === 'f') {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void document.documentElement.requestFullscreen().catch(() => {});
+    markActive();
+    return;
+  }
+
   if (session.duration === 0) return;
 
   if (e.key === ' ') {
@@ -317,9 +343,6 @@ window.addEventListener('keydown', (e) => {
     session.seek(session.time - 5);
   } else if (e.key === 'ArrowRight') {
     session.seek(session.time + 5);
-  } else if (e.key.toLowerCase() === 'f') {
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void document.documentElement.requestFullscreen().catch(() => {});
   }
   markActive();
 });

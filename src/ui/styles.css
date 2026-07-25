@@ -547,6 +547,34 @@ body.idle {
   font-variant-numeric: tabular-nums;
 }
 
+.retro-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.retro-dot {
+  width: 7px;
+  height: 7px;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+  transition: background 0.3s var(--ease);
+}
+
+.retro-toggle[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+.retro-toggle[aria-pressed='true'] .retro-dot {
+  background: var(--accent);
+}
+
+/* The chrome degrades a little while the tape deck runs underneath. */
+body.retro #transport,
+body.retro .panel {
+  filter: saturate(0.82) contrast(1.06);
+}
+
 .rec-dot {
   width: 7px;
   height: 7px;
