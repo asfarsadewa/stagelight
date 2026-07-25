@@ -21,6 +21,8 @@ export class Stage {
   private readonly environment: Environment;
   private dancer: Dancer | null = null;
   private atlases: AtlasCache | null = null;
+  /** Increments per character request; only the newest may take the stage. */
+  private characterToken = 0;
 
   private readonly cameraTarget = new THREE.Vector3(0, 1.5, 0);
   private readonly canvas: HTMLCanvasElement;
@@ -70,10 +72,24 @@ export class Stage {
    * Swap in a different avatar. The outgoing dancer is only torn down once the
    * replacement's atlas has arrived, so a mid-performance change never leaves
    * an empty stage.
+   *
+   * Loads are ordered by a generation token rather than by completion, because
+   * atlases differ in size and a request started earlier can finish later. A
+   * slow default arriving after a fast deliberate choice would otherwise
+   * overwrite it, leaving the picker describing someone who is not on stage.
+   * Guarding here rather than in the caller keeps the stage correct whoever
+   * calls it.
+   *
+   * @returns whether this call was the one applied.
    */
-  async setCharacter(character: Character, baseUrl: string) {
+  async setCharacter(character: Character, baseUrl: string): Promise<boolean> {
+    const token = ++this.characterToken;
     this.atlases ??= new AtlasCache(baseUrl);
     const { texture, meta } = await this.atlases.load(character.id);
+
+    // Superseded while the atlas was in flight — drop it before building
+    // anything, so a stale load costs nothing but the fetch.
+    if (token !== this.characterToken) return false;
 
     const dancer = new Dancer(texture, meta, BASE_HEIGHT * (character.scale ?? 1));
     const outgoing = this.dancer;
@@ -84,6 +100,7 @@ export class Stage {
       this.scene.remove(outgoing.group);
       outgoing.dispose();
     }
+    return true;
   }
 
   /** Run the stage through a tape deck. */

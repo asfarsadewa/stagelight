@@ -42,6 +42,23 @@ current output is correct, just under-described.
 **Picking it up:** patch the Segment/Info/Duration element post-hoc, or adopt a
 known-good implementation rather than hand-rolling one.
 
+## Reduced motion is only honoured for VHS mode
+
+`prefers-reduced-motion: reduce` now stops VHS mode defaulting on, and the
+stylesheet already collapses panel animation and transitions. The stage itself
+still does not respond to it.
+
+That is a partial answer. The tape flicker was the most obvious offender, but
+the rig arguably has more: lights that flash on every beat, bloom that pulses
+with intensity, downbeat rings, a drifting camera, and the sprite's own
+squash and overshoot. For someone who asked for less motion, a strobing stage
+is a bigger problem than a wobbling one.
+
+**Picking it up:** thread the preference into `DanceState` or the rig, damp
+`beatPulse`-driven light and bloom swings, hold the camera still, and skip the
+downbeat rings. The choreography can stay — it is the point of the app — but it
+does not need to be lit like a nightclub.
+
 ## The `transitions` branch
 
 Merged into `main` (fast-forward, so history is linear) but never deleted, and

@@ -238,8 +238,19 @@ function setRetro(on: boolean) {
 
 retroButton.addEventListener('click', () => setRetro(!stage.retroEnabled));
 
-// On by default: the tape look is the house style, not an easter egg.
-setRetro(true);
+/**
+ * On by default — the tape look is the house style, not an easter egg — unless
+ * the machine asks for reduced motion.
+ *
+ * The stylesheet already honours that preference, but this effect lives in a
+ * shader where CSS cannot reach it, and it is the most motion-heavy thing here:
+ * interlace flicker at 30 Hz, frame tearing, wobble and a tracking band that
+ * lurches on the beat. Defaulting that on for someone who has asked for less
+ * motion is the one place where a house style should give way. The toggle still
+ * works, so it stays available to anyone who wants it.
+ */
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+setRetro(!prefersReducedMotion);
 
 /* ---------------------------------------------------------------- recording */
 
@@ -475,12 +486,19 @@ const castRows = [el('cast-row'), el('cast-row-transport')];
 let cast: CastManifest | null = null;
 let currentCharacter: Character | null = null;
 let swapping = false;
+/** False until the default avatar is actually on stage. */
+let castReady = false;
 
 async function initCast() {
   cast = await loadCast(SPRITE_BASE);
   currentCharacter = findCharacter(cast, null);
+  // Drawn straight away but inert, so the panel does not shift under the
+  // pointer when it becomes usable — and so nobody can pick a second dancer
+  // while the first is still in flight.
   renderCast();
   await stage.setCharacter(currentCharacter, SPRITE_BASE);
+  castReady = true;
+  renderCast();
 
   // Only once the default is on stage, so the first frame is never held up.
   const rest = cast.characters.filter((c) => c.id !== currentCharacter?.id);
@@ -506,6 +524,7 @@ function renderCast() {
         // The compact row shows faces only, so the name has to live here.
         chip.setAttribute('aria-label', character.name);
         chip.title = `${character.name} — ${character.tagline}`;
+        chip.disabled = !castReady || swapping;
 
         const head = document.createElement('img');
         head.className = 'cast-head';
@@ -534,14 +553,15 @@ function renderCast() {
 
 /** Atlases are a megabyte each, so they load on demand and are cached after. */
 async function selectCharacter(character: Character) {
-  if (swapping || character.id === currentCharacter?.id) return;
+  if (!castReady || swapping || character.id === currentCharacter?.id) return;
   swapping = true;
   for (const row of castRows) {
     for (const chip of row.querySelectorAll('button')) chip.disabled = true;
   }
   try {
-    await stage.setCharacter(character, SPRITE_BASE);
-    currentCharacter = character;
+    // Only claim the choice if this load was the one that reached the stage;
+    // otherwise the picker would describe someone who is not on it.
+    if (await stage.setCharacter(character, SPRITE_BASE)) currentCharacter = character;
   } catch {
     fail('That dancer could not be loaded.');
   } finally {
