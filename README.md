@@ -92,6 +92,7 @@ to a fraction of the step so fast eight-step bars do not ghost throughout.
 
 ## VHS mode
 
+**On by default** — the tape look is the house style, not an easter egg.
 `V`, or the button in the transport, runs the whole stage through a tape deck:
 CRT curvature, tracking-band skew, chroma bleed, print-through ghosting, grain,
 dropouts, wobble, scanlines and vignette. Adapted from the same effect in the

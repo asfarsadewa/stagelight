@@ -238,6 +238,9 @@ function setRetro(on: boolean) {
 
 retroButton.addEventListener('click', () => setRetro(!stage.retroEnabled));
 
+// On by default: the tape look is the house style, not an easter egg.
+setRetro(true);
+
 /* ---------------------------------------------------------------- recording */
 
 recordButton.hidden = !isRecordingSupported();

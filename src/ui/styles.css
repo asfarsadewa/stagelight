@@ -326,9 +326,20 @@ body.dragging .pick {
   height: 26px;
 }
 
+/* Too narrow to sit inline with the transport controls, so it wraps onto its
+   own line rather than disappearing — swapping dancer mid-track is the point
+   of the picker, and phones had no way to reach it. */
 @media (max-width: 860px) {
   .cast-row-compact {
-    display: none;
+    order: 10;
+    width: 100%;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .cast-row-compact .cast-head {
+    width: 32px;
+    height: 32px;
   }
 }
 
@@ -459,6 +470,7 @@ body.idle {
 .transport-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.9rem;
   font-size: 0.75rem;
   letter-spacing: 0.08em;
@@ -613,6 +625,23 @@ body.recording.idle {
 @media (max-width: 540px) {
   .readout {
     display: none;
+  }
+
+  /* Keep every control reachable on a phone: tighter gaps, and touch targets
+     that stay at least 32px even though the labels shrink. */
+  .transport-row {
+    gap: 0.6rem;
+  }
+
+  .transport-row .ghost {
+    font-size: 0.64rem;
+    /* Generous vertical padding so the tap target clears 40px even though the
+       label itself is small. */
+    padding: 13px 4px;
+  }
+
+  .time {
+    font-size: 0.7rem;
   }
 }
 
