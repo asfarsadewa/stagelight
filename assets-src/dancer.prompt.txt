@@ -1,0 +1,24 @@
+A 2D game sprite sheet: exactly 12 frames of ONE anime girl dancing, arranged in a strict 4-column by 3-row grid, read left-to-right then top-to-bottom as a single looping dance cycle.
+
+CHARACTER (identical in every single frame — same face, same hair, same outfit, same proportions, same height):
+Cheerful anime girl, late teens, slim, 6.5-heads tall. Chin-length silver-white bob haircut with soft mint-green tips and a short straight fringe. Large expressive teal eyes, small confident smile. Oversized cropped hoodie in pale cream with a thin mint drawstring, sleeves slightly past the wrists. Short pleated skirt in charcoal grey. Black over-knee socks. Chunky white sneakers with mint soles. One thin mint hair clip on her left side.
+
+FRAME ORDER (each frame is a distinct dance pose of the same continuous motion):
+1 neutral stance, weight centred, arms relaxed at sides, slight smile
+2 weight shifts to her right hip, right arm rising outward
+3 both arms up in a wide V, chest lifted, hair swinging up
+4 arms sweeping down across the body to her left, hips left
+5 side step to her left, left knee bent, left arm pointing left
+6 spin mid-turn, seen three-quarter from behind-left, skirt and hair flaring
+7 spin completing, three-quarter front-right, hair still flaring
+8 landing wide stance, both arms crossed low in front
+9 crouch-bounce, knees bent, elbows tucked in at the ribs
+10 jumping up, both feet off the ground, arms thrown overhead
+11 landing softly, one knee bent, one arm forward in a finger-point
+12 return toward neutral, arms drifting down, slight bounce
+
+STYLE: clean modern anime cel-shading, crisp black-free soft line art, flat even neutral front lighting with only gentle ambient occlusion, NO rim light, NO cast shadow, NO coloured lighting, NO glow — the sprite must look neutrally lit so a game engine can light it. Bright saturated readable colours, strong clear silhouette in every frame.
+
+LAYOUT: full body head-to-sneakers visible in every cell, feet near the bottom of the cell, identical camera distance and eye-level camera angle in all 12 frames, character vertically centred and horizontally centred in its cell, generous padding around each figure, frames evenly spaced with clear empty gutters between them.
+
+BACKGROUND: perfectly flat solid #00ff00 chroma-key background filling every cell and every gutter. No shadows, no gradients, no texture, no reflections, no floor, no grid lines, no frame borders, no numbers, no text, no watermark. Do not use the colour #00ff00 anywhere on the character. Crisp clean edges.

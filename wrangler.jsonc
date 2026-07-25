@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "beat-visualiser",
+  "compatibility_date": "2026-07-01",
+  // Pure static SPA — no Worker script, no server-side audio handling.
+  // The mp3 never leaves the browser.
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}

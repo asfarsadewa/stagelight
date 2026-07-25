@@ -1,0 +1,58 @@
+{
+  "image": "dancer-atlas.png",
+  "columns": 4,
+  "rows": 3,
+  "frameCount": 12,
+  "cellSize": 512,
+  "baseline": 0.96875,
+  "frames": [
+    {
+      "index": 0,
+      "relativeHeight": 0.9914
+    },
+    {
+      "index": 1,
+      "relativeHeight": 0.9744
+    },
+    {
+      "index": 2,
+      "relativeHeight": 0.9999
+    },
+    {
+      "index": 3,
+      "relativeHeight": 0.9553
+    },
+    {
+      "index": 4,
+      "relativeHeight": 0.9171
+    },
+    {
+      "index": 5,
+      "relativeHeight": 0.9468
+    },
+    {
+      "index": 6,
+      "relativeHeight": 0.9447
+    },
+    {
+      "index": 7,
+      "relativeHeight": 0.8725
+    },
+    {
+      "index": 8,
+      "relativeHeight": 0.7876
+    },
+    {
+      "index": 9,
+      "relativeHeight": 0.6985
+    },
+    {
+      "index": 10,
+      "relativeHeight": 0.9426
+    },
+    {
+      "index": 11,
+      "relativeHeight": 0.9256
+    }
+  ]
+}

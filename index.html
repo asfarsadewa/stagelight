@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>Stagelight — a beat visualiser</title>
+    <meta
+      name="description"
+      content="Drop in an MP3 and watch it danced back to you. Your file never leaves the browser."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%2364e0ff' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%2364e0ff'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/ui/styles.css" />
+  </head>
+  <body>
+    <canvas id="stage" aria-hidden="true"></canvas>
+
+    <div id="vignette" aria-hidden="true"></div>
+
+    <main id="ui">
+      <!-- Idle / intake -->
+      <section id="intake" class="panel">
+        <h1>Stagelight</h1>
+        <a class="byline" href="https://x.com/ashthepeasant" target="_blank" rel="noopener noreferrer">
+          @ashthepeasant
+        </a>
+        <p class="lede">Give her a track. She&rsquo;ll find the beat.</p>
+
+        <button id="pick" class="pick" type="button">
+          <span class="pick-key">Choose an audio file</span>
+          <span class="pick-hint">or drop one anywhere</span>
+        </button>
+
+        <div class="samples">
+          <p class="samples-label">or try a sample</p>
+          <div class="samples-row">
+            <button class="sample" type="button" data-sample="project-a-ko-dance-away.mp3">
+              <span class="sample-title">Dance Away</span>
+              <span class="sample-sub">Project A-ko</span>
+            </button>
+            <button class="sample" type="button" data-sample="super-robot-wars-z-cosmic-dance.mp3">
+              <span class="sample-title">Cosmic Dance</span>
+              <span class="sample-sub">Super Robot Wars Z</span>
+            </button>
+          </div>
+        </div>
+
+        <p class="fine">
+          Everything runs in this tab. Your file is never uploaded, never stored, and is gone the
+          moment you close the page. Sample tracks belong to their respective rights holders and
+          are here for demonstration only.
+        </p>
+        <p id="intake-error" class="error" role="alert" hidden></p>
+      </section>
+
+      <!-- Analysis -->
+      <section id="analysing" class="panel" hidden>
+        <p class="stage-label" id="analysis-stage">Listening</p>
+        <div class="meter"><div id="analysis-bar"></div></div>
+        <p class="fine" id="analysis-name"></p>
+      </section>
+    </main>
+
+    <!-- Transport, shown once a track is loaded -->
+    <footer id="transport" hidden>
+      <div class="scrub" id="scrub" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="scrub-track"><div class="scrub-fill" id="scrub-fill"></div></div>
+      </div>
+      <div class="transport-row">
+        <button id="playpause" type="button" aria-label="Play">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path id="playpause-icon" d="M8 5v14l11-7z" /></svg>
+        </button>
+        <span class="time"><span id="elapsed">0:00</span> <i>/</i> <span id="total">0:00</span></span>
+        <span class="spacer"></span>
+        <span class="readout" id="readout"></span>
+        <button id="eject" type="button" class="ghost">New track</button>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
