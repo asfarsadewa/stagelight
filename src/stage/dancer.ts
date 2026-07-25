@@ -3,6 +3,10 @@ import type { DanceState } from '../choreo/director';
 
 const WHITE = new THREE.Color(0xffffff);
 
+function wrapFrame(index: number, count: number): number {
+  return ((index % count) + count) % count;
+}
+
 export interface AtlasMeta {
   image: string;
   columns: number;
@@ -23,6 +27,9 @@ export class Dancer {
   private readonly body: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
   private readonly halo: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private readonly reflection: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  private readonly ghost: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  private readonly ghostMap: THREE.Texture;
+  private ghostFrame = -1;
   private readonly meta: AtlasMeta;
   private readonly maps: THREE.Texture[] = [];
   private currentFrame = -1;
@@ -36,9 +43,13 @@ export class Dancer {
     const repeatX = 1 / meta.columns;
     const repeatY = 1 / meta.rows;
 
-    // Three independent texture views over the same image so body, halo and
-    // reflection can share one upload but keep their own filtering.
-    const makeMap = () => {
+    // Independent texture views over the same image so each layer can keep its
+    // own filtering and cell offset while sharing one upload.
+    //
+    // `shared` views all track the pose currently on screen. The afterimage
+    // does not — it deliberately lags a frame behind — so it is left out of
+    // the list `setFrame` advances.
+    const makeMap = (shared = true) => {
       const t = texture.clone();
       t.needsUpdate = true;
       t.colorSpace = THREE.SRGBColorSpace;
@@ -47,13 +58,14 @@ export class Dancer {
       t.minFilter = THREE.LinearMipmapLinearFilter;
       t.magFilter = THREE.LinearFilter;
       t.repeat.set(repeatX, repeatY);
-      this.maps.push(t);
+      if (shared) this.maps.push(t);
       return t;
     };
 
     const bodyMap = makeMap();
     const haloMap = makeMap();
     const reflectionMap = makeMap();
+    this.ghostMap = makeMap(false);
 
     const width = height; // atlas cells are square
     const geometry = new THREE.PlaneGeometry(width, height);
@@ -93,6 +105,25 @@ export class Dancer {
     this.halo.scale.setScalar(1.035);
     this.halo.position.z = -0.02;
     this.halo.renderOrder = -1;
+
+    // The outgoing drawing, held for a couple of frames behind the new one.
+    // Additive and tinted so it reads as a light smear rather than a second
+    // dancer — a true crossfade between two drawings of the same character
+    // gives you four arms and two heads.
+    this.ghost = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({
+        map: this.ghostMap,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        opacity: 0,
+        color: new THREE.Color(0x59d3ff),
+      }),
+    );
+    this.ghost.position.z = -0.04;
+    this.ghost.renderOrder = -1;
+    this.ghost.visible = false;
 
     // Mirrored below the deck, fading out with distance from the contact point
     // the way a wet floor does. Cheaper and far more controllable than a real
@@ -156,11 +187,12 @@ export class Dancer {
     this.feetFromCenter = feetFromCenter;
     this.body.position.y = feetFromCenter;
     this.halo.position.y = feetFromCenter;
+    this.ghost.position.y = feetFromCenter;
     // Flipping about the floor plane puts the mirrored centre as far below y=0
     // as the real one is above it.
     this.reflection.position.y = -feetFromCenter;
 
-    this.group.add(this.reflection, this.halo, this.body);
+    this.group.add(this.reflection, this.ghost, this.halo, this.body);
     this.setFrame(0);
   }
 
@@ -169,9 +201,30 @@ export class Dancer {
     return this.height;
   }
 
+  private updateGhost(state: DanceState, rimColor: THREE.Color) {
+    if (state.ghostAmount <= 0.004) {
+      this.ghost.visible = false;
+      return;
+    }
+    this.ghost.visible = true;
+
+    const i = wrapFrame(state.ghostFrame, this.meta.frameCount);
+    if (i !== this.ghostFrame) {
+      const col = i % this.meta.columns;
+      const row = Math.floor(i / this.meta.columns);
+      this.ghostMap.offset.set(col / this.meta.columns, 1 - (row + 1) / this.meta.rows);
+      this.ghostFrame = i;
+    }
+
+    this.ghost.material.color.copy(rimColor);
+    this.ghost.material.opacity = state.ghostAmount * 0.42;
+    this.ghost.position.x = state.ghostOffsetX;
+    this.ghost.position.y = this.feetFromCenter + state.ghostOffsetY;
+  }
+
   private setFrame(index: number) {
     if (index === this.currentFrame) return;
-    const i = ((index % this.meta.frameCount) + this.meta.frameCount) % this.meta.frameCount;
+    const i = wrapFrame(index, this.meta.frameCount);
     const col = i % this.meta.columns;
     const row = Math.floor(i / this.meta.columns);
     const x = col / this.meta.columns;
@@ -197,7 +250,11 @@ export class Dancer {
       cameraPosition.z - this.group.position.z,
     );
     this.group.rotation.z = state.lean;
-    this.group.scale.set(1 / Math.sqrt(state.squash), state.squash, 1);
+    // Squash is volume-preserving on its own; stretchX rides on top of it so a
+    // turn can narrow or flare her width without changing her height.
+    this.group.scale.set((1 / Math.sqrt(state.squash)) * state.stretchX, state.squash, 1);
+
+    this.updateGhost(state, rimColor);
 
     const heat = state.beatPulse * (0.35 + state.high * 0.65);
     this.halo.material.color.copy(rimColor);
@@ -217,6 +274,8 @@ export class Dancer {
     this.body.material.dispose();
     this.halo.material.dispose();
     this.reflection.material.dispose();
+    this.ghost.material.dispose();
+    this.ghostMap.dispose();
     this.body.customDepthMaterial?.dispose();
     for (const map of this.maps) map.dispose();
   }

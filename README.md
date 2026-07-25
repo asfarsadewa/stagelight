@@ -56,6 +56,40 @@ layers them:
 - **Procedural motion** on top — an arc through each pose, kick-driven squash,
   extra airtime on the jump and spin poses, slow sway and lean.
 
+### Transitions
+
+Twelve drawings cut hard from one to the next. The aim is not to smooth that
+over — the art suits limited animation — but to give each cut momentum,
+preparation and impact, so the missing in-betweens feel implied.
+
+**Hold → anticipate → snap → settle.** The drawing changes `CUT_LEAD_BEATS`
+before the nominal step boundary, so the overshoot straddles the beat and the
+*impact* is what lands on the transient rather than the swap. Before the cut the
+body prepares; after it, it resolves. The pose's own arc now starts at the cut,
+not at the beat, which is the difference between motion following the drawing
+and motion carrying it.
+
+**A transition vocabulary, not an animation system.** `poses.ts` holds a small
+table of what each drawing is — height, facing, airborne, effort — from which
+`transitionKind` derives one of `rise | drop | turn | gesture | recover |
+neutral` for all 144 edges, with a handful of overrides where the derived answer
+is wrong. Each kind has a motion recipe of pre- and post-cut deltas. A `rise`
+into a grounded pose becomes vertical stretch rather than lift, so she reaches
+up instead of floating.
+
+**Transition-aware bar planning.** Moves are curated internally, but the seam
+between two independently chosen bars was not — one bar could end mid-air and
+the next open on a calm arm pose. The routine is now planned forward one move
+per bar, scoring candidates by `transitionCost` from the previous bar's closing
+pose. That kills bad cuts before they are drawn. It also makes the routine a
+pure function of the analysis, so seeking replays exactly what you saw.
+
+**Afterimage, not crossfade.** Dissolving two drawings of the same character
+gives you four arms and two heads. Instead the outgoing drawing is held behind
+the new one for ~80 ms, additive, tinted with the rim light and offset against
+the direction of travel. It is gated to high intensity and hard cuts, and capped
+to a fraction of the step so fast eight-step bars do not ghost throughout.
+
 ## Exporting a performance
 
 The **Record** button in the transport captures the stage to a local file:
