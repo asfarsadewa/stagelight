@@ -15,7 +15,24 @@ export interface LoadProgress {
  * Everything lives in memory for the lifetime of the tab: the file is never
  * uploaded, never written to storage, and `dispose()` drops the last reference.
  */
+/** Injectable so the playback state machine can be tested without a real one. */
+export type AudioContextFactory = () => AudioContext;
+
+/**
+ * Read through a call so TypeScript cannot narrow the state across an `await`.
+ * `resume()` is precisely what changes it, and iOS additionally reports
+ * `interrupted`, which is neither running nor recoverable by ignoring it.
+ */
+function isRunning(ctx: AudioContext): boolean {
+  return ctx.state === 'running';
+}
+
 export class AudioSession {
+  constructor(
+    private readonly createContext: AudioContextFactory = () =>
+      new AudioContext({ latencyHint: 'playback' }),
+  ) {}
+
   private ctx: AudioContext | null = null;
   private buffer: AudioBuffer | null = null;
   private source: AudioBufferSourceNode | null = null;
@@ -31,6 +48,12 @@ export class AudioSession {
 
   analysis: AnalysisResult | null = null;
   onEnded: (() => void) | null = null;
+  /** Fires whenever the underlying context changes state, for diagnostics. */
+  onStateChange: ((state: AudioContextState) => void) | null = null;
+
+  get contextState(): AudioContextState | 'none' {
+    return this.ctx?.state ?? 'none';
+  }
 
   get duration(): number {
     return this.buffer?.duration ?? 0;
@@ -47,6 +70,8 @@ export class AudioSession {
   }
 
   async load(file: File, onProgress: (p: LoadProgress) => void): Promise<void> {
+    // Keep the context: stop() would only clear the track, but tearing the
+    // context down here would throw away an unlock we may not get again.
     this.stop();
     onProgress({ value: 0.02, stage: 'Decoding' });
 
@@ -66,22 +91,59 @@ export class AudioSession {
         'Your browser could not decode that file. MP3, WAV, AAC and OGG all work; Apple Lossless does not, outside Safari.',
       );
     }
-    this.buffer = buffer;
-
     onProgress({ value: 0.12, stage: 'Preparing' });
     const mono = await downmix(buffer);
 
-    this.analysis = await runAnalyzer(mono, ANALYSIS_RATE, (p) =>
+    const analysis = await runAnalyzer(mono, ANALYSIS_RATE, (p) =>
       onProgress({ value: 0.12 + p.value * 0.88, stage: p.stage }),
     );
 
-    this.pausedAt = 0;
+    this.adopt(buffer, analysis);
   }
 
-  play(): void {
+  /**
+   * Create and resume the context from inside a user gesture.
+   *
+   * This has to be called synchronously from the click or drop, before any
+   * await. Loading a track is a long asynchronous errand — fetch, decode,
+   * downmix, analyse — and by the time it finishes the activation that
+   * authorised audio is long gone. iOS in particular will then leave the
+   * context suspended, and a suspended context produces silence while every
+   * other part of the app carries on as though it were playing.
+   */
+  async unlock(): Promise<boolean> {
     const ctx = this.ensureContext();
-    if (!this.buffer || this.playing) return;
-    void ctx.resume();
+    if (!isRunning(ctx)) {
+      try {
+        await ctx.resume();
+      } catch {
+        // Declined; the caller decides what to tell the user.
+      }
+    }
+    return isRunning(ctx);
+  }
+
+  /**
+   * @returns whether sound is actually coming out. Never reports true on a
+   *          context that failed to start — the transport, the clock and the
+   *          choreography all key off this, and a lie here is exactly the bug
+   *          where the timer runs on in silence.
+   */
+  async play(): Promise<boolean> {
+    const ctx = this.ensureContext();
+    if (!this.buffer || this.playing) return this.playing;
+
+    // Only awaits when it has to, so a seek during playback stays tight.
+    if (!isRunning(ctx)) {
+      try {
+        await ctx.resume();
+      } catch {
+        return false;
+      }
+      // Superseded while suspended: a stop or another play won the race.
+      if (!this.buffer || this.playing) return this.playing;
+    }
+    if (!isRunning(ctx)) return false;
 
     const source = ctx.createBufferSource();
     source.buffer = this.buffer;
@@ -103,6 +165,33 @@ export class AudioSession {
 
     this.source = source;
     this.playing = true;
+    return true;
+  }
+
+  /**
+   * Nudge a context that was interrupted while we believed we were playing —
+   * a phone call, a lock, an app switch. Safe to call often.
+   */
+  async recover(): Promise<boolean> {
+    const ctx = this.ctx;
+    if (!this.playing || !ctx) return false;
+    if (isRunning(ctx)) return true;
+    try {
+      await ctx.resume();
+    } catch {
+      return false;
+    }
+    return isRunning(ctx);
+  }
+
+  /**
+   * Install an already-decoded track. Kept separate from decoding so playback
+   * can be exercised without a decoder, worker or offline context.
+   */
+  adopt(buffer: AudioBuffer, analysis: AnalysisResult | null): void {
+    this.buffer = buffer;
+    this.analysis = analysis;
+    this.pausedAt = 0;
   }
 
   /**
@@ -148,9 +237,12 @@ export class AudioSession {
     this.playing = false;
   }
 
-  toggle(): void {
-    if (this.playing) this.pause();
-    else this.play();
+  async toggle(): Promise<boolean> {
+    if (this.playing) {
+      this.pause();
+      return false;
+    }
+    return this.play();
   }
 
   seek(seconds: number): void {
@@ -159,7 +251,7 @@ export class AudioSession {
     this.stopSource();
     this.playing = false;
     this.pausedAt = target;
-    if (wasPlaying) this.play();
+    if (wasPlaying) void this.play();
   }
 
   stop(): void {
@@ -197,9 +289,19 @@ export class AudioSession {
   }
 
   private ensureContext(): AudioContext {
-    this.ctx ??= new AudioContext({ latencyHint: 'playback' });
+    if (!this.ctx) {
+      this.ctx = this.createContext();
+      // iOS can suspend or interrupt a context at any time — a call, a lock,
+      // a route change. Watch for it so playback can be recovered rather than
+      // silently continuing to claim it is running.
+      this.ctx.addEventListener?.('statechange', this.handleStateChange);
+    }
     return this.ctx;
   }
+
+  private readonly handleStateChange = () => {
+    this.onStateChange?.(this.ctx?.state ?? 'closed');
+  };
 }
 
 /** Mono, resampled copy for analysis. Uses the platform resampler. */

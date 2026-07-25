@@ -64,6 +64,7 @@ document.body.appendChild(fileInput);
 
 el('pick').addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
+  void session.unlock();
   const file = fileInput.files?.[0];
   if (file) void accept(file);
   fileInput.value = '';
@@ -71,6 +72,10 @@ fileInput.addEventListener('change', () => {
 
 for (const button of document.querySelectorAll<HTMLButtonElement>('.sample')) {
   button.addEventListener('click', () => {
+    // Before anything async: the fetch, decode and analysis that follow will
+    // outlive this click's user activation, and the context must be created
+    // and resumed while it still counts.
+    void session.unlock();
     const name = button.dataset.sample;
     if (name) void acceptSample(name, button.querySelector('.sample-title')?.textContent ?? name);
   });
@@ -138,6 +143,7 @@ window.addEventListener('dragleave', () => {
 });
 window.addEventListener('drop', (e) => {
   e.preventDefault();
+  void session.unlock();
   dragDepth = 0;
   document.body.classList.remove('dragging');
   const file = e.dataTransfer?.files?.[0];
@@ -174,7 +180,12 @@ async function accept(file: File, { silent = false } = {}) {
     updateReadout();
 
     chime.lightsUp();
-    session.play();
+    // If the browser declined, say so plainly rather than running the clock
+    // and the choreography over silence.
+    if (!(await session.play())) {
+      intakeError.textContent = 'Your browser paused audio. Press play to start.';
+      intakeError.hidden = false;
+    }
     reflectPlayState();
     markActive();
   } catch (err) {
@@ -204,8 +215,8 @@ function setProgress(value: number, stageText: string) {
 /* ---------------------------------------------------------------- transport */
 
 playpause.addEventListener('click', () => {
-  session.toggle();
-  reflectPlayState();
+  void session.unlock();
+  void session.toggle().then(reflectPlayState);
 });
 
 el('eject').addEventListener('click', () => {
@@ -218,6 +229,29 @@ el('eject').addEventListener('click', () => {
   intakeError.hidden = true;
   document.body.classList.remove('idle');
 });
+
+/**
+ * iOS suspends or interrupts an audio context for a call, a lock, an app
+ * switch or a route change, and does not always bring it back on its own.
+ * When the page returns to view while we still believe we are playing, try to
+ * pick it back up — and if that fails, stop claiming to be playing.
+ */
+const recoverPlayback = () => {
+  if (document.visibilityState !== 'visible' || !session.isPlaying) return;
+  void session.recover().then((ok) => {
+    if (!ok) {
+      session.pause();
+      reflectPlayState();
+    }
+  });
+};
+document.addEventListener('visibilitychange', recoverPlayback);
+window.addEventListener('pageshow', recoverPlayback);
+window.addEventListener('focus', recoverPlayback);
+
+if (import.meta.env.DEV) {
+  session.onStateChange = (state) => console.info('[audio] context state ->', state);
+}
 
 session.onEnded = () => {
   // Finish the file at the end of the track rather than leaving it running.
@@ -351,8 +385,7 @@ window.addEventListener('keydown', (e) => {
 
   if (e.key === ' ') {
     e.preventDefault();
-    session.toggle();
-    reflectPlayState();
+    void session.toggle().then(reflectPlayState);
   } else if (e.key === 'ArrowLeft') {
     session.seek(session.time - 5);
   } else if (e.key === 'ArrowRight') {
