@@ -179,6 +179,27 @@ adding a line to `public/sprites/characters.json`.
 tallest pose: the Comtesse's parasol eats into her height budget, so she is
 drawn smaller and scaled back up to read as the adult she is.
 
+### Two on stage
+
+The **DUO** button in the transport brings a partner on. They are staged for
+depth rather than symmetry: the lead stands downstage of centre, the partner
+upstage and off the lead's left shoulder. The camera sits on +Z looking at the
+origin, so a dancer facing it has her own left toward +X — screen right. Both
+marks are pushed off the centre axis, because two figures near the axis crowd
+each other at the ends of the camera's orbit.
+
+The partner runs her own `Director`. Both are deterministic from the same
+analysis so they plan the same routine, but each keeps its own smoothing and
+beat cursor, which lets the partner be sampled 50 ms behind without corrupting
+the lead's state. Two figures hitting the same frame on the same millisecond
+read as one sprite drawn twice; a little lag reads as two people. She also
+carries slightly less of the procedural motion and a dimmer halo, so the eye
+still knows who is leading.
+
+The partner is whoever comes next in the cast, wrapping. With three characters
+that reaches every possible pairing, so changing the lead cycles the pair and no
+separate partner picker is needed.
+
 ### Why the atlases are WebP
 
 They started as PNGs at 1.3–2.3 MB each, which made "preload the whole cast"

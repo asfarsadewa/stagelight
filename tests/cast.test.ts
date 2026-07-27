@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findCharacter, headUrl, type CastManifest } from '../src/stage/cast';
+import { findCharacter, headUrl, partnerFor, type CastManifest } from '../src/stage/cast';
 
 const manifest: CastManifest = {
   default: 'shadow',
@@ -42,6 +42,39 @@ describe('headUrl', () => {
 
   it('works under a non-root base path', () => {
     expect(headUrl('/app/sprites', 'comtesse')).toBe('/app/sprites/comtesse-head.webp');
+  });
+});
+
+describe('partnerFor', () => {
+  it('takes the next character in the cast', () => {
+    expect(partnerFor(manifest, 'mint')?.id).toBe('shadow');
+    expect(partnerFor(manifest, 'shadow')?.id).toBe('comtesse');
+  });
+
+  it('wraps around at the end', () => {
+    expect(partnerFor(manifest, 'comtesse')?.id).toBe('mint');
+  });
+
+  it('never pairs anyone with themselves', () => {
+    for (const c of manifest.characters) {
+      expect(partnerFor(manifest, c.id)?.id).not.toBe(c.id);
+    }
+  });
+
+  it('reaches every pairing as the lead changes', () => {
+    // With three in the cast this is why no separate partner picker is needed.
+    const pairs = new Set(
+      manifest.characters.map((c) => [c.id, partnerFor(manifest, c.id)!.id].sort().join('+')),
+    );
+    expect(pairs.size).toBe(3);
+  });
+
+  it('has nobody to offer in a cast of one', () => {
+    expect(partnerFor({ default: 'solo', characters: [manifest.characters[0]] }, 'mint')).toBeNull();
+  });
+
+  it('falls back to the first character for an unknown lead', () => {
+    expect(partnerFor(manifest, 'nobody')?.id).toBe('shadow');
   });
 });
 

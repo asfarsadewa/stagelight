@@ -6,6 +6,28 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { createRetroPass } from './retro';
 import { Dancer } from './dancer';
 import { AtlasCache, BASE_HEIGHT, type Character } from './cast';
+
+/** Who stands where. The lead carries the number; the partner supports it. */
+export type Slot = 'lead' | 'partner';
+
+/**
+ * Marks on the deck.
+ *
+ * The camera sits on +Z looking at the origin, so a dancer facing it has her
+ * own left toward +X — screen right. The partner therefore stands upstage and
+ * to +X: behind the lead and off her left shoulder, not shoulder to shoulder.
+ * The lead is nudged downstage of centre so the two read as depth rather than
+ * as a row.
+ */
+const MARKS: Record<Slot, [number, number, number]> = {
+  // Offset from centre so the pair straddles it: the camera orbits, and two
+  // figures both near the axis crowd each other at the ends of the swing.
+  lead: [-0.6, 0, 0.8],
+  partner: [1.4, 0, -1.55],
+};
+
+/** How much of the lead's presence a partner carries. */
+const PARTNER_PRESENCE = 0.82;
 import { Environment } from './environment';
 import { LightRig } from './rig';
 import type { DanceState } from '../choreo/director';
@@ -19,10 +41,10 @@ export class Stage {
   private readonly retro: ReturnType<typeof createRetroPass>;
   private readonly rig: LightRig;
   private readonly environment: Environment;
-  private dancer: Dancer | null = null;
+  private readonly cast: Record<Slot, Dancer | null> = { lead: null, partner: null };
   private atlases: AtlasCache | null = null;
-  /** Increments per character request; only the newest may take the stage. */
-  private characterToken = 0;
+  /** Increments per slot; only the newest request for a slot may take it. */
+  private readonly characterToken: Record<Slot, number> = { lead: 0, partner: 0 };
 
   private readonly cameraTarget = new THREE.Vector3(0, 1.5, 0);
   private readonly canvas: HTMLCanvasElement;
@@ -82,18 +104,21 @@ export class Stage {
    *
    * @returns whether this call was the one applied.
    */
-  async setCharacter(character: Character, baseUrl: string): Promise<boolean> {
-    const token = ++this.characterToken;
+  async setCharacter(character: Character, baseUrl: string, slot: Slot = 'lead'): Promise<boolean> {
+    const token = ++this.characterToken[slot];
     this.atlases ??= new AtlasCache(baseUrl);
     const { texture, meta } = await this.atlases.load(character.id);
 
     // Superseded while the atlas was in flight — drop it before building
     // anything, so a stale load costs nothing but the fetch.
-    if (token !== this.characterToken) return false;
+    if (token !== this.characterToken[slot]) return false;
 
     const dancer = new Dancer(texture, meta, BASE_HEIGHT * (character.scale ?? 1));
-    const outgoing = this.dancer;
-    this.dancer = dancer;
+    dancer.base.set(...MARKS[slot]);
+    dancer.presence = slot === 'partner' ? PARTNER_PRESENCE : 1;
+
+    const outgoing = this.cast[slot];
+    this.cast[slot] = dancer;
     this.scene.add(dancer.group);
 
     if (outgoing) {
@@ -101,6 +126,20 @@ export class Stage {
       outgoing.dispose();
     }
     return true;
+  }
+
+  /** Clear a slot. Bumps the token so an in-flight load cannot revive it. */
+  clearSlot(slot: Slot) {
+    this.characterToken[slot]++;
+    const outgoing = this.cast[slot];
+    if (!outgoing) return;
+    this.cast[slot] = null;
+    this.scene.remove(outgoing.group);
+    outgoing.dispose();
+  }
+
+  hasSlot(slot: Slot): boolean {
+    return this.cast[slot] !== null;
   }
 
   /** Run the stage through a tape deck. */
@@ -148,16 +187,21 @@ export class Stage {
     this.camera.updateProjectionMatrix();
   }
 
-  render(dt: number, time: number, state: DanceState) {
+  /**
+   * @param state    the lead's motion; the rig, camera and floor pool follow it
+   * @param partner  the partner's own motion, when one is on stage
+   */
+  render(dt: number, time: number, state: DanceState, partner?: DanceState | null) {
     this.rig.update(dt, state, time);
     this.environment.update(dt, state, time, {
       rim: this.rig.rimColor,
       haze: this.rig.hazeColor,
       floor: this.rig.floorColor,
     });
-    // Camera first, so the billboard faces where the camera actually ended up.
+    // Camera first, so the billboards face where the camera actually ended up.
     this.updateCamera(dt, time, state);
-    this.dancer?.update(state, this.rig.rimColor, this.camera.position);
+    this.cast.lead?.update(state, this.rig.rimColor, this.camera.position);
+    this.cast.partner?.update(partner ?? state, this.rig.rimColor, this.camera.position);
 
     this.bloom.strength = 0.26 + state.intensity * 0.34 + state.beatPulse * 0.14;
     this.renderer.toneMappingExposure = 1.0 + state.beatPulse * 0.07 * state.intensity;
@@ -189,7 +233,8 @@ export class Stage {
   }
 
   dispose() {
-    this.dancer?.dispose();
+    this.cast.lead?.dispose();
+    this.cast.partner?.dispose();
     this.environment.dispose();
     this.rig.dispose();
     this.composer.dispose();

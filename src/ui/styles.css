@@ -559,10 +559,45 @@ body.idle {
   font-variant-numeric: tabular-nums;
 }
 
-.retro-toggle {
+.retro-toggle,
+.duo-toggle {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+/* Two dots in the staggered arrangement the dancers actually stand in. */
+.duo-marks {
+  position: relative;
+  width: 11px;
+  height: 9px;
+}
+
+.duo-marks i {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+}
+
+.duo-marks i:first-child {
+  left: 0;
+  bottom: 0;
+}
+
+.duo-marks i:last-child {
+  right: 0;
+  top: 0;
+  opacity: 0.55;
+}
+
+.duo-toggle[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+.duo-toggle[aria-pressed='true'] .duo-marks i {
+  background: var(--accent);
 }
 
 .retro-dot {

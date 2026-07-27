@@ -24,6 +24,10 @@ export interface AtlasMeta {
  */
 export class Dancer {
   readonly group = new THREE.Group();
+  /** Mark on the deck this dancer works around; sway and lift ride on top. */
+  readonly base = new THREE.Vector3();
+  /** Scales the whole procedural layer, so a partner can read as support. */
+  presence = 1;
   private readonly body: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
   private readonly halo: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private readonly reflection: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
@@ -239,8 +243,11 @@ export class Dancer {
   update(state: DanceState, rimColor: THREE.Color, cameraPosition: THREE.Vector3) {
     this.setFrame(state.frame);
 
-    this.group.position.x = state.sway;
-    this.group.position.y = state.lift;
+    this.group.position.set(
+      this.base.x + state.sway * this.presence,
+      this.base.y + state.lift * this.presence,
+      this.base.z,
+    );
     // Turn to face the camera as it orbits, or the drawing foreshortens and she
     // drifts off her own light pool. 'YXZ' puts the lean inside the billboard
     // rotation, so it stays a screen-space tilt.
@@ -249,7 +256,7 @@ export class Dancer {
       cameraPosition.x - this.group.position.x,
       cameraPosition.z - this.group.position.z,
     );
-    this.group.rotation.z = state.lean;
+    this.group.rotation.z = state.lean * this.presence;
     // Squash is volume-preserving on its own; stretchX rides on top of it so a
     // turn can narrow or flare her width without changing her height.
     this.group.scale.set((1 / Math.sqrt(state.squash)) * state.stretchX, state.squash, 1);
@@ -258,13 +265,14 @@ export class Dancer {
 
     const heat = state.beatPulse * (0.35 + state.high * 0.65);
     this.halo.material.color.copy(rimColor);
-    this.halo.material.opacity = 0.18 + heat * 0.5 + state.intensity * 0.12;
+    // Dimmer on a partner, so the eye still knows who is leading.
+    this.halo.material.opacity = (0.18 + heat * 0.5 + state.intensity * 0.12) * this.presence;
     this.halo.scale.setScalar(1.02 + heat * 0.045);
 
     const uniforms = this.reflection.material.uniforms;
     // The group's lift moves both copies up; the mirror image has to travel the
     // same distance the other way, so cancel it twice over.
-    this.reflection.position.y = -this.feetFromCenter - state.lift * 2;
+    this.reflection.position.y = -this.feetFromCenter - state.lift * this.presence * 2;
     (uniforms.uTint.value as THREE.Color).copy(rimColor).lerp(WHITE, 0.6);
     uniforms.uStrength.value = Math.max(0, 0.62 - state.lift * 0.4) * (0.6 + state.intensity * 0.4);
   }

@@ -51,6 +51,19 @@ export function headUrl(baseUrl: string, id: string): string {
   return `${baseUrl}/${id}-head.webp`;
 }
 
+/**
+ * Who stands behind the lead: the next character in the cast, wrapping.
+ *
+ * With three in the cast this reaches every possible pairing, so no separate
+ * partner picker is needed — changing the lead cycles the pair.
+ */
+export function partnerFor(manifest: CastManifest, leadId: string): Character | null {
+  const list = manifest.characters;
+  if (list.length < 2) return null;
+  const at = list.findIndex((c) => c.id === leadId);
+  return list[(Math.max(0, at) + 1) % list.length];
+}
+
 export function findCharacter(manifest: CastManifest, id: string | null): Character {
   return (
     manifest.characters.find((c) => c.id === id) ??

@@ -2,7 +2,14 @@ import './ui/styles.css';
 import { AudioSession } from './audio/session';
 import { Director } from './choreo/director';
 import { Stage } from './stage/stage';
-import { findCharacter, headUrl, loadCast, type CastManifest, type Character } from './stage/cast';
+import {
+  findCharacter,
+  headUrl,
+  loadCast,
+  partnerFor,
+  type CastManifest,
+  type Character,
+} from './stage/cast';
 import { Chime } from './ui/chime';
 import {
   PerformanceRecorder,
@@ -40,6 +47,19 @@ const PAUSE_PATH = 'M7 5h3.2v14H7zM13.8 5H17v14h-3.2z';
 
 const session = new AudioSession();
 const director = new Director();
+/**
+ * The partner gets its own director rather than sharing the lead's.
+ *
+ * Both are deterministic from the analysis, so they plan the same routine — but
+ * each keeps its own smoothing and beat cursor, which lets the partner be
+ * sampled at a slightly different time without corrupting the lead's state.
+ */
+const partnerDirector = new Director();
+/**
+ * A hair behind the lead. Two figures hitting the same frame on the same
+ * millisecond read as one sprite drawn twice; a little lag reads as two people.
+ */
+const PARTNER_LAG_SECONDS = 0.05;
 const stage = new Stage(canvas);
 const chime = new Chime();
 const recorder = new PerformanceRecorder();
@@ -173,6 +193,7 @@ async function accept(file: File, { silent = false } = {}) {
   try {
     await session.load(file, (p) => setProgress(p.value, p.stage));
     director.setAnalysis(session.analysis);
+    partnerDirector.setAnalysis(session.analysis);
 
     analysing.hidden = true;
     transport.hidden = false;
@@ -224,6 +245,7 @@ el('eject').addEventListener('click', () => {
   reflectRecordState();
   session.stop();
   director.setAnalysis(null);
+  partnerDirector.setAnalysis(null);
   transport.hidden = true;
   intake.hidden = false;
   intakeError.hidden = true;
@@ -449,13 +471,12 @@ function frame(now: number) {
   const playing = session.isPlaying;
   const time = playing ? session.time : idleClock;
 
-  const state = director.update(
-    time,
-    dt,
-    playing ? bandsFromSpectrum(session.sampleSpectrum()) : undefined,
-    !playing,
-  );
-  stage.render(dt, time, state);
+  const live = playing ? bandsFromSpectrum(session.sampleSpectrum()) : undefined;
+  const state = director.update(time, dt, live, !playing);
+  const partnerState = duo
+    ? partnerDirector.update(Math.max(0, time - PARTNER_LAG_SECONDS), dt, live, !playing)
+    : null;
+  stage.render(dt, time, state, partnerState);
 
   if (session.duration > 0) {
     const position = session.time;
@@ -490,6 +511,7 @@ if (import.meta.env.DEV) {
     __stagelight: {
       stage,
       director,
+      partnerDirector,
       session,
       resize: (w: number, h: number) => stage.resize(w, h),
       /** Feed the normal intake path from a served file, for analyser checks. */
@@ -503,7 +525,10 @@ if (import.meta.env.DEV) {
         const start = Math.max(0, time - frames * dt);
         for (let i = 0; i < frames; i++) {
           const t = start + i * dt;
-          stage.render(dt, t, director.update(t, dt));
+          const partnerState = duo
+            ? partnerDirector.update(Math.max(0, t - PARTNER_LAG_SECONDS), dt)
+            : null;
+          stage.render(dt, t, director.update(t, dt), partnerState);
         }
       },
       shot: () => canvas.toDataURL('image/png'),
@@ -521,6 +546,41 @@ let currentCharacter: Character | null = null;
 let swapping = false;
 /** False until the default avatar is actually on stage. */
 let castReady = false;
+let duo = false;
+
+const duoButton = el<HTMLButtonElement>('duo');
+
+function reflectDuo() {
+  duoButton.setAttribute('aria-pressed', String(duo));
+  const partner = cast && currentCharacter ? partnerFor(cast, currentCharacter.id) : null;
+  duoButton.title = duo && partner ? `Two dancers — with ${partner.name}` : 'Two dancers';
+}
+
+/** Bring the partner on or send her off, following whoever is leading. */
+async function setDuo(on: boolean) {
+  duo = on;
+  reflectDuo();
+  if (!cast || !currentCharacter) return;
+
+  if (!on) {
+    stage.clearSlot('partner');
+    return;
+  }
+  const partner = partnerFor(cast, currentCharacter.id);
+  if (!partner) {
+    duo = false;
+    reflectDuo();
+    return;
+  }
+  await stage.setCharacter(partner, SPRITE_BASE, 'partner');
+}
+
+duoButton.addEventListener('click', () => {
+  duoButton.disabled = true;
+  void setDuo(!duo).finally(() => {
+    duoButton.disabled = false;
+  });
+});
 
 async function initCast() {
   cast = await loadCast(SPRITE_BASE);
@@ -529,9 +589,10 @@ async function initCast() {
   // pointer when it becomes usable — and so nobody can pick a second dancer
   // while the first is still in flight.
   renderCast();
-  await stage.setCharacter(currentCharacter, SPRITE_BASE);
+  await stage.setCharacter(currentCharacter, SPRITE_BASE, 'lead');
   castReady = true;
   renderCast();
+  reflectDuo();
 
   // Only once the default is on stage, so the first frame is never held up.
   const rest = cast.characters.filter((c) => c.id !== currentCharacter?.id);
@@ -594,7 +655,11 @@ async function selectCharacter(character: Character) {
   try {
     // Only claim the choice if this load was the one that reached the stage;
     // otherwise the picker would describe someone who is not on it.
-    if (await stage.setCharacter(character, SPRITE_BASE)) currentCharacter = character;
+    if (await stage.setCharacter(character, SPRITE_BASE, 'lead')) {
+      currentCharacter = character;
+      // The partner follows the lead, so the pair never doubles up.
+      if (duo) await setDuo(true);
+    }
   } catch {
     fail('That dancer could not be loaded.');
   } finally {
