@@ -19,9 +19,12 @@ export type Slot = 'lead' | 'partner';
  * The lead is nudged downstage of centre so the two read as depth rather than
  * as a row.
  */
-const MARKS: Record<Slot, [number, number, number]> = {
-  // Offset from centre so the pair straddles it: the camera orbits, and two
-  // figures both near the axis crowd each other at the ends of the swing.
+const MARKS: Record<'solo' | Slot, [number, number, number]> = {
+  // Alone, she owns the stage and stands on its axis.
+  solo: [0, 0, 0],
+  // With a partner, both marks sit off centre so the pair straddles it: the
+  // camera orbits, and two figures near the axis crowd each other at the ends
+  // of the swing.
   lead: [-0.6, 0, 0.8],
   partner: [1.4, 0, -1.55],
 };
@@ -114,12 +117,12 @@ export class Stage {
     if (token !== this.characterToken[slot]) return false;
 
     const dancer = new Dancer(texture, meta, BASE_HEIGHT * (character.scale ?? 1));
-    dancer.base.set(...MARKS[slot]);
     dancer.presence = slot === 'partner' ? PARTNER_PRESENCE : 1;
 
     const outgoing = this.cast[slot];
     this.cast[slot] = dancer;
     this.scene.add(dancer.group);
+    this.applyMarks();
 
     if (outgoing) {
       this.scene.remove(outgoing.group);
@@ -136,6 +139,17 @@ export class Stage {
     this.cast[slot] = null;
     this.scene.remove(outgoing.group);
     outgoing.dispose();
+    this.applyMarks();
+  }
+
+  /**
+   * Positions depend on who else is out there: a lone dancer belongs on the
+   * stage's axis, a lead sharing it with a partner does not.
+   */
+  private applyMarks() {
+    const paired = this.cast.partner !== null;
+    this.cast.lead?.setMark(...MARKS[paired ? 'lead' : 'solo']);
+    this.cast.partner?.setMark(...MARKS.partner);
   }
 
   hasSlot(slot: Slot): boolean {
@@ -200,8 +214,8 @@ export class Stage {
     });
     // Camera first, so the billboards face where the camera actually ended up.
     this.updateCamera(dt, time, state);
-    this.cast.lead?.update(state, this.rig.rimColor, this.camera.position);
-    this.cast.partner?.update(partner ?? state, this.rig.rimColor, this.camera.position);
+    this.cast.lead?.update(state, this.rig.rimColor, this.camera.position, dt);
+    this.cast.partner?.update(partner ?? state, this.rig.rimColor, this.camera.position, dt);
 
     this.bloom.strength = 0.26 + state.intensity * 0.34 + state.beatPulse * 0.14;
     this.renderer.toneMappingExposure = 1.0 + state.beatPulse * 0.07 * state.intensity;

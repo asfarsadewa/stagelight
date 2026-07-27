@@ -24,8 +24,11 @@ export interface AtlasMeta {
  */
 export class Dancer {
   readonly group = new THREE.Group();
-  /** Mark on the deck this dancer works around; sway and lift ride on top. */
-  readonly base = new THREE.Vector3();
+  /** Where she is standing; sway and lift ride on top of this. */
+  private readonly base = new THREE.Vector3();
+  /** Where she should be standing. She walks there rather than cutting. */
+  private readonly mark = new THREE.Vector3();
+  private placed = false;
   /** Scales the whole procedural layer, so a partner can read as support. */
   presence = 1;
   private readonly body: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial>;
@@ -205,6 +208,19 @@ export class Dancer {
     return this.height;
   }
 
+  /**
+   * Set the spot on the deck she works around. The first call places her
+   * outright; later ones are a move she makes, so bringing a partner on slides
+   * the lead across rather than teleporting her.
+   */
+  setMark(x: number, y: number, z: number) {
+    this.mark.set(x, y, z);
+    if (!this.placed) {
+      this.base.copy(this.mark);
+      this.placed = true;
+    }
+  }
+
   private updateGhost(state: DanceState, rimColor: THREE.Color) {
     if (state.ghostAmount <= 0.004) {
       this.ghost.visible = false;
@@ -240,9 +256,10 @@ export class Dancer {
     this.currentFrame = i;
   }
 
-  update(state: DanceState, rimColor: THREE.Color, cameraPosition: THREE.Vector3) {
+  update(state: DanceState, rimColor: THREE.Color, cameraPosition: THREE.Vector3, dt: number) {
     this.setFrame(state.frame);
 
+    this.base.lerp(this.mark, Math.min(1, dt * 2.2));
     this.group.position.set(
       this.base.x + state.sway * this.presence,
       this.base.y + state.lift * this.presence,
